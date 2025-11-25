@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LoanManager - Gestão Inteligente de Empréstimos</title>
+    <meta name="description" content="Sistema completo de gestão de empréstimos com controle de clientes, notificações automáticas e relatórios financeiros." />
+    <meta name="author" content="LoanManager" />
+
+    <meta property="og:title" content="LoanManager - Gestão Inteligente de Empréstimos" />
+    <meta property="og:description" content="Sistema completo de gestão de empréstimos com controle de clientes, notificações automáticas e relatórios financeiros." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
