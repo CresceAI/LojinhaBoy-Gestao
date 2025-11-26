@@ -4,14 +4,14 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }: { mode: string }) => ({
-  // Só aplica o base em produção (deploy no GitHub Pages)
-  base: mode === "production" ? "/LojinhaBoy-Gestao/" : "/",
+export default defineConfig(() => ({
+  // Usa variável de ambiente para decidir o base
+  base: process.env.VITE_BASE_PATH || "/",
   server: {
     host: "::",
     port: 8080,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), process.env.NODE_ENV === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
