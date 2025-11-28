@@ -9,10 +9,6 @@ export interface User {
 export interface Cliente {
   id: string;
   nome: string;
-  cpfCnpj: string;
-  telefone: string;
-  endereco: string;
-  observacoes?: string;
   createdAt: string;
 }
 
@@ -56,4 +52,5 @@ export interface DashboardStats {
   totalRecebido: number;
   emprestimosAbertos: number;
   vencimentosProximos: number;
+  lucroRecebido: number;
 }
