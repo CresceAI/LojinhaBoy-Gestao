@@ -1,14 +1,34 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { getEmprestimos, getClientes, getParcelasByEmprestimo, updateParcela, getParcelas, saveParcelas, getAssinatura, saveAssinatura } from '@/utils/storage';
-import { formatCurrency, formatDate, generateId, calcularValorParcela } from '@/utils/calculations';
-import { Parcela } from '@/types/parcela';
-import { ArrowLeft, CheckCircle, Calendar, DollarSign, FileText } from 'lucide-react';
-import { toast } from 'sonner';
-import { AssinaturaDigital } from '@/components/AssinaturaDigital';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  getEmprestimos,
+  getClientes,
+  getParcelasByEmprestimo,
+  updateParcela,
+  getParcelas,
+  saveParcelas,
+  getAssinatura,
+  saveAssinatura,
+} from "@/utils/storage";
+import {
+  formatCurrency,
+  formatDate,
+  generateId,
+  calcularValorParcela,
+} from "@/utils/calculations";
+import { Parcela } from "@/types/parcela";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Calendar,
+  DollarSign,
+  FileText,
+} from "lucide-react";
+import { toast } from "sonner";
+import { AssinaturaDigital } from "@/components/AssinaturaDigital";
 
 const ParcelasDetalhadas = () => {
   const { emprestimoId } = useParams();
@@ -26,36 +46,40 @@ const ParcelasDetalhadas = () => {
   const loadData = () => {
     if (!emprestimoId) return;
 
-    const emp = getEmprestimos().find(e => e.id === emprestimoId);
+    const emp = getEmprestimos().find((e) => e.id === emprestimoId);
     if (!emp) {
-      toast.error('Empréstimo não encontrado');
-      navigate('/emprestimos');
+      toast.error("Empréstimo não encontrado");
+      navigate("/emprestimos");
       return;
     }
 
     setEmprestimo(emp);
 
-    const cli = getClientes().find(c => c.id === emp.clienteId);
+    const cli = getClientes().find((c) => c.id === emp.clienteId);
     setCliente(cli);
 
-    // Buscar ou gerar parcelas
     let parcelasExistentes = getParcelasByEmprestimo(emprestimoId);
-    
-    if (parcelasExistentes.length === 0 && emp.formaPagamento === 'parcelado' && emp.numeroParcelas) {
-      // Gerar parcelas automaticamente
+
+    if (
+      parcelasExistentes.length === 0 &&
+      emp.formaPagamento === "parcelado" &&
+      emp.numeroParcelas
+    ) {
       parcelasExistentes = gerarParcelas(emp);
     }
 
     setParcelas(parcelasExistentes);
 
-    // Carregar assinatura
     const assinaturaExistente = getAssinatura(emprestimoId);
     setAssinatura(assinaturaExistente);
   };
 
   const gerarParcelas = (emp: any): Parcela[] => {
     const novasParcelas: Parcela[] = [];
-    const valorParcela = calcularValorParcela(emp.valorTotal, emp.numeroParcelas!);
+    const valorParcela = calcularValorParcela(
+      emp.valorTotal,
+      emp.numeroParcelas!
+    );
     const dataInicio = new Date(emp.dataInicio);
 
     for (let i = 1; i <= emp.numeroParcelas!; i++) {
@@ -67,15 +91,14 @@ const ParcelasDetalhadas = () => {
         emprestimoId: emp.id,
         numeroParcela: i,
         valor: valorParcela,
-        dataVencimento: dataVencimento.toISOString().split('T')[0],
-        status: 'pendente',
+        dataVencimento: dataVencimento.toISOString().split("T")[0],
+        status: "pendente",
         createdAt: new Date().toISOString(),
       };
 
       novasParcelas.push(parcela);
     }
 
-    // Salvar parcelas
     const todasParcelas = [...getParcelas(), ...novasParcelas];
     saveParcelas(todasParcelas);
 
@@ -84,11 +107,11 @@ const ParcelasDetalhadas = () => {
 
   const handlePagarParcela = (id: string) => {
     updateParcela(id, {
-      status: 'pago',
+      status: "pago",
       dataPagamento: new Date().toISOString(),
     });
     loadData();
-    toast.success('Parcela marcada como paga!');
+    toast.success("Parcela marcada como paga!");
   };
 
   const handleSaveAssinatura = (assinaturaData: string) => {
@@ -96,15 +119,19 @@ const ParcelasDetalhadas = () => {
     saveAssinatura(emprestimoId, assinaturaData);
     setAssinatura(assinaturaData);
     setShowAssinatura(false);
-    toast.success('Assinatura salva com sucesso!');
+    toast.success("Assinatura salva com sucesso!");
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pendente': return 'bg-warning text-warning-foreground';
-      case 'pago': return 'bg-success text-success-foreground';
-      case 'vencido': return 'bg-destructive text-destructive-foreground';
-      default: return 'bg-muted text-muted-foreground';
+      case "pendente":
+        return "bg-warning/15 text-warning-foreground";
+      case "pago":
+        return "bg-success/15 text-success-foreground";
+      case "vencido":
+        return "bg-destructive/15 text-destructive-foreground";
+      default:
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -112,45 +139,71 @@ const ParcelasDetalhadas = () => {
     return null;
   }
 
+  const saldoRestante = emprestimo.valorTotal - emprestimo.valorPago;
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
+      {/* Header + botão voltar */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/emprestimos')} className="apple-button">
+        <Button
+          variant="ghost"
+          onClick={() => navigate("/emprestimos")}
+          className="apple-button"
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Parcelas - {cliente.nome}</h1>
-          <p className="text-muted-foreground mt-1">
-            {emprestimo.formaPagamento === 'parcelado' 
-              ? `${emprestimo.numeroParcelas}x de ${formatCurrency(calcularValorParcela(emprestimo.valorTotal, emprestimo.numeroParcelas))}`
-              : 'Pagamento à vista'}
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Parcelas – {cliente.nome}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {emprestimo.formaPagamento === "parcelado"
+              ? `${emprestimo.numeroParcelas}x de ${formatCurrency(
+                  calcularValorParcela(
+                    emprestimo.valorTotal,
+                    emprestimo.numeroParcelas
+                  )
+                )}`
+              : "Pagamento à vista"}
           </p>
         </div>
       </div>
 
-      {/* Resumo do Empréstimo */}
-      <Card className="apple-card">
-        <CardHeader>
-          <CardTitle>Resumo do Empréstimo</CardTitle>
+      {/* Resumo do Empréstimo (hero glass) */}
+      <Card className="glass-panel hover-lift">
+        <div className="glass-glow" />
+        <CardHeader className="relative">
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-[hsl(var(--neon))]" />
+            Resumo do empréstimo
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">Valor Total</p>
-              <p className="text-xl font-bold text-foreground">{formatCurrency(emprestimo.valorTotal)}</p>
+              <p className="text-xs text-muted-foreground mb-1">Valor total</p>
+              <p className="text-xl font-semibold">
+                {formatCurrency(emprestimo.valorTotal)}
+              </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Valor Pago</p>
-              <p className="text-xl font-bold text-success">{formatCurrency(emprestimo.valorPago)}</p>
+              <p className="text-xs text-muted-foreground mb-1">Valor pago</p>
+              <p className="text-xl font-semibold text-success">
+                {formatCurrency(emprestimo.valorPago)}
+              </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Saldo Restante</p>
-              <p className="text-xl font-bold text-warning">{formatCurrency(emprestimo.valorTotal - emprestimo.valorPago)}</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Saldo restante
+              </p>
+              <p className="text-xl font-semibold text-warning">
+                {formatCurrency(saldoRestante)}
+              </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Status</p>
-              <Badge className={`${getStatusColor(emprestimo.status)} mt-2`}>
+              <p className="text-xs text-muted-foreground mb-1">Status</p>
+              <Badge className={`${getStatusColor(emprestimo.status)} mt-1`}>
                 {emprestimo.status}
               </Badge>
             </div>
@@ -160,20 +213,28 @@ const ParcelasDetalhadas = () => {
 
       {/* Assinatura Digital */}
       {!showAssinatura && (
-        <Card className="apple-card">
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="glass-panel hover-lift">
+          <div className="glass-glow" />
+          <CardHeader className="relative flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Assinatura Digital
+              Assinatura digital
             </CardTitle>
-            <Button onClick={() => setShowAssinatura(true)} className="apple-button">
-              {assinatura ? 'Editar Assinatura' : 'Adicionar Assinatura'}
+            <Button
+              onClick={() => setShowAssinatura(true)}
+              className="apple-button"
+            >
+              {assinatura ? "Editar assinatura" : "Adicionar assinatura"}
             </Button>
           </CardHeader>
           {assinatura && (
-            <CardContent>
-              <div className="border border-border rounded-xl p-4 bg-muted/50">
-                <img src={assinatura} alt="Assinatura" className="max-h-32 mx-auto" />
+            <CardContent className="relative">
+              <div className="border border-white/10 rounded-2xl p-4 bg-black/20">
+                <img
+                  src={assinatura}
+                  alt="Assinatura"
+                  className="max-h-32 mx-auto"
+                />
               </div>
             </CardContent>
           )}
@@ -190,24 +251,36 @@ const ParcelasDetalhadas = () => {
 
       {/* Lista de Parcelas */}
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold text-foreground">Parcelas</h2>
-        
+        <h2 className="text-xl font-semibold">Parcelas</h2>
+
         {parcelas.map((parcela) => (
-          <Card key={parcela.id} className="apple-card animate-scale-in">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
+          <Card
+            key={parcela.id}
+            className="glass-panel hover-lift animate-scale-in"
+          >
+            <div className="glass-glow" />
+            <CardContent className="relative pt-5 pb-4">
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-lg ${parcela.status === 'pago' ? 'bg-success/10' : 'bg-warning/10'}`}>
-                    {parcela.status === 'pago' ? (
+                  <div
+                    className={`p-3 rounded-2xl ${
+                      parcela.status === "pago"
+                        ? "bg-success/15"
+                        : "bg-warning/15"
+                    }`}
+                  >
+                    {parcela.status === "pago" ? (
                       <CheckCircle className="w-6 h-6 text-success" />
                     ) : (
                       <DollarSign className="w-6 h-6 text-warning" />
                     )}
                   </div>
-                  
+
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-lg">Parcela {parcela.numeroParcela}</h3>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="font-semibold text-lg">
+                        Parcela {parcela.numeroParcela}
+                      </h3>
                       <Badge className={getStatusColor(parcela.status)}>
                         {parcela.status}
                       </Badge>
@@ -225,18 +298,18 @@ const ParcelasDetalhadas = () => {
                   </div>
                 </div>
 
-                <div className="text-right flex items-center gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">{formatCurrency(parcela.valor)}</p>
-                  </div>
-                  
-                  {parcela.status === 'pendente' && (
+                <div className="flex items-center gap-4">
+                  <p className="text-2xl font-semibold">
+                    {formatCurrency(parcela.valor)}
+                  </p>
+
+                  {parcela.status === "pendente" && (
                     <Button
                       onClick={() => handlePagarParcela(parcela.id)}
                       className="apple-button"
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Marcar como Paga
+                      Marcar como paga
                     </Button>
                   )}
                 </div>
@@ -246,11 +319,14 @@ const ParcelasDetalhadas = () => {
         ))}
       </div>
 
-      {parcelas.length === 0 && emprestimo.formaPagamento === 'vista' && (
-        <Card className="apple-card">
-          <CardContent className="text-center py-12">
+      {parcelas.length === 0 && emprestimo.formaPagamento === "vista" && (
+        <Card className="glass-panel">
+          <div className="glass-glow" />
+          <CardContent className="relative text-center py-12">
             <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Este empréstimo é à vista, não há parcelas.</p>
+            <p className="text-sm text-muted-foreground">
+              Este empréstimo é à vista, não há parcelas.
+            </p>
           </CardContent>
         </Card>
       )}
