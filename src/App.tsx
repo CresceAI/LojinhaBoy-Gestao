@@ -16,7 +16,13 @@ import RelatoriosAvancados from "./pages/RelatoriosAvancados";
 import ParcelasDetalhadas from "./pages/ParcelasDetalhadas";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos
+    },
+  },
+});
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -27,7 +33,15 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   if (isAuthenticated === null) {
-    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black/80 to-black animate-pulse">
+        <div className="glass-panel p-8 text-center">
+          <div className="glass-glow" />
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-white/10 animate-spin" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
   }
 
   return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/login" replace />;
@@ -42,14 +56,62 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
-          <Route path="/emprestimos" element={<ProtectedRoute><Emprestimos /></ProtectedRoute>} />
-          <Route path="/emprestimos/:emprestimoId/parcelas" element={<ProtectedRoute><ParcelasDetalhadas /></ProtectedRoute>} />
-          <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
-          <Route path="/cobranca" element={<ProtectedRoute><Cobranca /></ProtectedRoute>} />
-          <Route path="/relatorios" element={<ProtectedRoute><RelatoriosAvancados /></ProtectedRoute>} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clientes"
+            element={
+              <ProtectedRoute>
+                <Clientes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/emprestimos"
+            element={
+              <ProtectedRoute>
+                <Emprestimos />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/emprestimos/:emprestimoId/parcelas"
+            element={
+              <ProtectedRoute>
+                <ParcelasDetalhadas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notificacoes"
+            element={
+              <ProtectedRoute>
+                <Notificacoes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cobranca"
+            element={
+              <ProtectedRoute>
+                <Cobranca />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/relatorios"
+            element={
+              <ProtectedRoute>
+                <RelatoriosAvancados />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
