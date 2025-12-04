@@ -2,14 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Design System em HSL + Liquid Glass / Neon */
 
 @layer base {
   :root {
-    /* Apple-inspired Design System - Clean & Minimal */
-    --background: 0 0% 98%;
+    /* Light */
+    --background: 220 20% 97%;   /* off-white suave */
     --foreground: 0 0% 13%;
 
     --card: 0 0% 100%;
@@ -18,89 +16,92 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 13%;
 
-    /* Apple Blue #007AFF */
-    --primary: 211 100% 50%;
+    /* Azul confiável */
+    --primary: 211 90% 52%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 211 100% 45%;
+    --primary-hover: 211 90% 46%;
 
-    /* Subtle Gray */
+    /* Cinzas suaves */
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 13%;
 
     --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 0 0% 96%;
+    --accent: 210 22% 94%;
     --accent-foreground: 0 0% 13%;
 
-    /* Apple Green for Success */
-    --success: 142 76% 36%;
+    /* Sucesso / Erro */
+    --success: 142 60% 40%;
     --success-foreground: 0 0% 100%;
 
-    /* Apple Red for Errors */
-    --destructive: 4 90% 58%;
+    --destructive: 4 80% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders & Inputs */
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
-    --ring: 211 100% 50%;
+    /* Borda, input, focus */
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 211 90% 52%;
 
-    /* Apple-style radius */
-    --radius: 0.75rem;
+    /* Raio padrão */
+    --radius: 0.9rem;
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-
-    /* Warning */
+    /* Warning / Info */
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    /* Info */
-    --info: 211 100% 50%;
+    --info: 211 90% 52%;
     --info-foreground: 0 0% 100%;
+
+    /* Fintech / Liquid Glass extras */
+    --neon: 88 90% 58%;
+    --neon-foreground: 0 0% 5%;
+
+    --glass: 0 0% 100%;
+    --glass-border: 0 0% 88%;
   }
 
   .dark {
-    --background: 0 0% 7%;
+    --background: 210 30% 6%;
     --foreground: 0 0% 98%;
 
-    --card: 0 0% 11%;
+    --card: 210 30% 10%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 11%;
+    --popover: 210 30% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 211 100% 50%;
+    --primary: 211 90% 52%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 211 100% 55%;
+    --primary-hover: 211 90% 56%;
 
-    --secondary: 0 0% 15%;
+    --secondary: 210 25% 14%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 210 25% 14%;
+    --muted-foreground: 0 0% 70%;
 
-    --accent: 0 0% 15%;
+    --accent: 210 25% 14%;
     --accent-foreground: 0 0% 98%;
 
-    --success: 142 76% 36%;
+    --success: 142 60% 40%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 4 90% 58%;
+    --destructive: 4 80% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 211 100% 50%;
+    --border: 215 25% 32%;
+    --input: 215 25% 24%;
+    --ring: 211 90% 52%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --info: 211 100% 50%;
+    --info: 211 90% 52%;
     --info-foreground: 0 0% 100%;
+
+    --glass: 210 30% 9%;
+    --glass-border: 215 25% 32%;
   }
 }
 
@@ -110,18 +111,34 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    @apply text-foreground text-[15px] leading-relaxed;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+      "Helvetica", "Arial", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
+    /* Light: fundo off-white, cards brancos destacam */
+    background-color: hsl(var(--background));
   }
 
-  /* Apple-style smooth transitions */
+  .dark body {
+    /* Dark: gradiente glass fintech */
+    background:
+      radial-gradient(circle at top, hsla(88,90%,58%,0.18), transparent 55%),
+      radial-gradient(circle at bottom, hsl(210 30% 6%), hsl(210 40% 3%));
+  }
+
+  /* Transições suaves */
   * {
-    @apply transition-colors duration-200;
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease,
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.18s ease;
   }
 
-  /* Custom scrollbar */
+  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -141,7 +158,7 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
-  /* Apple-style animations */
+  /* Animações */
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out;
   }
@@ -155,12 +172,8 @@ All colors MUST be HSL.
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   @keyframes slideUp {
@@ -185,13 +198,82 @@ All colors MUST be HSL.
     }
   }
 
-  /* Apple-style card */
+  /* Ilustração de fundo opcional (main) */
+  .bg-dashboard-illustration {
+    background-image: url("/favicon1.png");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 320px;
+    pointer-events: none;
+  }
+
+  /* Card padrão */
   .apple-card {
     @apply bg-card rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300;
   }
 
-  /* Apple-style button */
+  /* Botão base neutro (sidebar, ações secundárias) */
   .apple-button {
-    @apply rounded-xl font-medium transition-all duration-200 active:scale-95;
+    @apply inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium
+      bg-secondary text-secondary-foreground
+      border border-border/60
+      shadow-sm
+      hover:bg-secondary/80 hover:shadow-md
+      active:scale-95
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60;
+  }
+
+  /* Botão CTA com neon (usar em ações principais) */
+  .btn-neon-primary {
+    @apply inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-medium
+      bg-[hsl(var(--neon))] text-[hsl(var(--neon-foreground))]
+      shadow-[0_0_18px_rgba(190,255,100,0.5)]
+      hover:brightness-110 hover:shadow-[0_0_26px_rgba(190,255,100,0.8)]
+      active:scale-95
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--neon))]/70;
+  }
+
+  /* Glass */
+  .glass-panel {
+    @apply relative overflow-hidden rounded-3xl border
+      border-[hsl(var(--glass-border))]
+      bg-[hsl(var(--glass))]
+      dark:bg-[hsl(var(--glass))]
+      backdrop-blur-2xl
+      shadow-[0_18px_45px_rgba(0,0,0,0.55)];
+  }
+
+  .glass-glow {
+    @apply pointer-events-none absolute inset-0 opacity-40;
+    background:
+      radial-gradient(circle at top left, rgba(190, 255, 100, 0.3), transparent 60%),
+      radial-gradient(circle at bottom right, rgba(0, 122, 255, 0.22), transparent 55%);
+  }
+
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-0.5;
+  }
+
+  .badge-status-ativo {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+      bg-[hsl(var(--neon))/0.12] text-[hsl(var(--neon))];
+  }
+
+  .badge-status-vencido {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+      bg-warning/18 text-warning-foreground;
+  }
+
+  .badge-status-pago {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+      bg-success/15 text-success;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight sm:text-3xl;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-muted-foreground sm:text-base;
   }
 }
