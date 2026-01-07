@@ -24,32 +24,30 @@ const Dashboard = () => {
   const { checkAndAddNotificacao } = useNotificacoes();
   const notificationsCheckedRef = useRef(false);
 
-  // --- LÓGICA DE INSIGHTS (Calculada via useMemo para performance) ---
+  // --- LÓGICA DE INSIGHTS (Calculada via useMemo com correções defensivas) ---
   const insights = useMemo(() => {
-    if (emprestimos.length === 0) return null;
+    // 4. Loading Unificado: Retorna null se os dados não estiverem prontos
+    if (!emprestimos || emprestimos.length === 0) return null;
 
     const agora = new Date();
 
-    const totais = emprestimos.reduce((acc, emp) => {
-      const valorTotal = Number(emp.valor_total);
-      const valorPago = Number(emp.valor_pago);
-      const juros = Number(emp.juros);
-      const principal = valorTotal - juros;
-      const pendente = valorTotal - valorPago;
+    return emprestimos.reduce((acc, emp) => {
+      // 1. Defensiva no reduce: Garante que valores nulos assumam 0 e não quebrem o cálculo
+      const valorTotal = Number(emp.valor_total || 0);
+      const valorPago = Number(emp.valor_pago || 0);
+      const juros = Number(emp.juros || 0);
+      const pendente = Math.max(0, valorTotal - valorPago);
 
-      // Capital que ainda está para voltar
       if (emp.status === 'ativo' || emp.status === 'vencido') {
         acc.capitalNaRua += pendente;
       }
 
-      // Lucro Realizado (Apenas juros de quem já pagou ou proporcional pago)
-      // Aqui simplificamos: se status é pago, o juros foi realizado.
       if (emp.status === 'pago') {
         acc.lucroRealizado += juros;
       }
 
-      // Vencidos (Inadimplência)
-      if (emp.status === 'ativo' && new Date(emp.data_vencimento) < agora) {
+      // 3. Verificação de Datas: Só calcula atraso se a data existir
+      if (emp.status === 'ativo' && emp.data_vencimento && new Date(emp.data_vencimento) < agora) {
         acc.valorEmAtraso += pendente;
       }
 
@@ -63,19 +61,19 @@ const Dashboard = () => {
       totalRecebido: 0,
       valorEmAtraso: 0 
     });
-
-    return totais;
   }, [emprestimos]);
 
   // --- FILTROS DE LISTAS ---
   const proximosVencimentos = useMemo(() => {
+    if (!emprestimos) return [];
     return emprestimos
-      .filter(e => e.status === 'ativo')
+      .filter(e => e.status === 'ativo' && e.data_vencimento) // Filtro de segurança para data
       .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
       .slice(0, 4);
   }, [emprestimos]);
 
   // --- RENDERS ---
+  // 4. Loading Unificado: Previne que o React tente renderizar listas vazias durante o re-fetch
   if (loadingEmprestimos) return <div className="p-10 text-center animate-pulse">Carregando inteligência financeira...</div>;
 
   return (
@@ -83,33 +81,34 @@ const Dashboard = () => {
       
       {/* HEADER DINÂMICO */}
       <div className="flex flex-col gap-1">
-        {/* CORREÇÃO AQUI: Alterado de full_name para nome para resolver o erro de TS */}
-        <h1 className="text-2xl font-bold tracking-tight">Olá, {profile?.nome?.split(' ')[0] || 'Gestor'}</h1>
+        {/* 2. Safety check no Header: Previne erro ao tentar dar .split em nome indefinido */}
+        <h1 className="text-2xl font-bold tracking-tight">
+          Olá, {profile?.nome ? profile.nome.split(' ')[0] : 'Gestor'}
+        </h1>
         <p className="text-muted-foreground text-sm">
           {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
         </p>
       </div>
 
       {/* CARD PRINCIPAL (ESTILO APPLE BANK) */}
-      <div className="balance-card bg-gradient-to-br from-primary to-primary/80 text-4xl p-6 rounded-[2rem] shadow-xl overflow-hidden relative">
+      <div className="balance-card bg-gradient-to-br from-primary to-primary/80 text-white p-6 rounded-[2rem] shadow-xl overflow-hidden relative">
         <div className="relative z-10">
-          <p className="text-4xl/80 text-xs font-medium uppercase tracking-wider mb-1">Capital Total sob Gestão</p>
+          <p className="text-white/80 text-xs font-medium uppercase tracking-wider mb-1">Capital Total sob Gestão</p>
           <h2 className="text-4xl font-bold mb-6">
             {formatCurrency((insights?.capitalNaRua || 0) + (insights?.totalRecebido || 0))}
           </h2>
           
           <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
             <div>
-              <p className="text-4xl/60 text-[10px] uppercase font-bold">Lucro Realizado</p>
+              <p className="text-white/60 text-[10px] uppercase font-bold">Lucro Realizado</p>
               <p className="text-lg font-semibold text-accent">{formatCurrency(insights?.lucroRealizado || 0)}</p>
             </div>
             <div>
-              <p className="text-4xl/60 text-[10px] uppercase font-bold">Capital na Rua</p>
+              <p className="text-white/60 text-[10px] uppercase font-bold">Capital na Rua</p>
               <p className="text-lg font-semibold">{formatCurrency(insights?.capitalNaRua || 0)}</p>
             </div>
           </div>
         </div>
-        {/* Círculos decorativos de vidro ao fundo */}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
       </div>
 
@@ -147,7 +146,6 @@ const Dashboard = () => {
 
       {/* LISTAS DE ATENÇÃO */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vencimentos com lógica de urgência */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold flex items-center gap-2">
@@ -161,15 +159,14 @@ const Dashboard = () => {
               <TransactionItem 
                 key={emp.id}
                 title={clientes.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
-                subtitle={format(new Date(emp.data_vencimento), "dd 'de' MMM", { locale: ptBR })}
-                value={formatCurrency(Number(emp.valor_total) - Number(emp.valor_pago))}
-                isVencido={new Date(emp.data_vencimento) < new Date()}
+                subtitle={emp.data_vencimento ? format(new Date(emp.data_vencimento), "dd 'de' MMM", { locale: ptBR }) : 'Sem data'}
+                value={formatCurrency(Number(emp.valor_total || 0) - Number(emp.valor_pago || 0))}
+                isVencido={emp.data_vencimento && new Date(emp.data_vencimento) < new Date()}
               />
             ))}
           </div>
         </section>
 
-        {/* Transações Recentes */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold flex items-center gap-2">
@@ -182,7 +179,7 @@ const Dashboard = () => {
                 key={emp.id}
                 title={clientes.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
                 subtitle="Pagamento integral"
-                value={formatCurrency(Number(emp.valor_total))}
+                value={formatCurrency(Number(emp.valor_total || 0))}
                 type="positive"
               />
             ))}
