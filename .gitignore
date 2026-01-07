@@ -27,8 +27,6 @@ dist-ssr
 *.sln
 *.sw?
 # Supabase
-.supabase/
-supabase/
 migrations/
 db/
 schema.sql
