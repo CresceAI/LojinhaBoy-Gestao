@@ -1,34 +1,16 @@
-import { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { getEmprestimos } from "@/utils/storage";
-import { formatCurrency } from "@/utils/calculations";
-import { Emprestimo } from "@/types";
-import {
-  BarChart3,
-  Download,
-  TrendingUp,
-  DollarSign,
-  AlertCircle,
-} from "lucide-react";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { useEmprestimos } from '@/hooks/useEmprestimos';
+import { formatCurrency } from '@/utils/calculations';
+import { BarChart3, Download, TrendingUp, DollarSign, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 const RelatoriosAvancados = () => {
-  const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
-  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
+  const { emprestimos, loading } = useEmprestimos();
+  const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [stats, setStats] = useState({
     totalEmprestado: 0,
     totalRecebido: 0,
@@ -36,36 +18,21 @@ const RelatoriosAvancados = () => {
     totalVencido: 0,
   });
 
+  const emprestimosFiltrados = filtroStatus === 'todos' 
+    ? emprestimos 
+    : emprestimos.filter(e => e.status === filtroStatus);
+
   useEffect(() => {
-    loadData();
-  }, [filtroStatus]);
+    const data = emprestimosFiltrados;
 
-  const loadData = () => {
-    let data = getEmprestimos();
-
-    if (filtroStatus !== "todos") {
-      data = data.filter((e) => e.status === filtroStatus);
-    }
-
-    setEmprestimos(data);
-
-    const totalEmprestado = data.reduce(
-      (acc, emp) => acc + emp.valorTotal,
-      0
-    );
-    const totalRecebido = data.reduce(
-      (acc, emp) => acc + emp.valorPago,
-      0
-    );
+    const totalEmprestado = data.reduce((acc, emp) => acc + Number(emp.valor_total), 0);
+    const totalRecebido = data.reduce((acc, emp) => acc + Number(emp.valor_pago), 0);
     const totalAberto = data
-      .filter((e) => e.status === "ativo")
-      .reduce(
-        (acc, emp) => acc + (emp.valorTotal - emp.valorPago),
-        0
-      );
+      .filter(e => e.status === 'ativo')
+      .reduce((acc, emp) => acc + (Number(emp.valor_total) - Number(emp.valor_pago)), 0);
     const totalVencido = data
-      .filter((e) => e.status === "vencido")
-      .reduce((acc, emp) => acc + emp.valorTotal, 0);
+      .filter(e => e.status === 'vencido')
+      .reduce((acc, emp) => acc + Number(emp.valor_total), 0);
 
     setStats({
       totalEmprestado,
@@ -73,75 +40,73 @@ const RelatoriosAvancados = () => {
       totalAberto,
       totalVencido,
     });
-  };
+  }, [emprestimosFiltrados]);
 
   const handleExportarPDF = () => {
-    toast.success("Exportação simulada! Em produção, seria gerado um PDF.");
+    toast.success('Exportação PDF em breve!');
   };
 
   const handleExportarExcel = () => {
-    toast.success("Exportação simulada! Em produção, seria gerado um Excel.");
+    toast.success('Exportação Excel em breve!');
   };
 
   const cardStats = [
     {
-      title: "Total emprestado",
+      title: 'Total Emprestado',
       value: formatCurrency(stats.totalEmprestado),
       icon: DollarSign,
-      color: "text-primary",
-      bgColor: "bg-primary/15",
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
     },
     {
-      title: "Total recebido",
+      title: 'Total Recebido',
       value: formatCurrency(stats.totalRecebido),
       icon: TrendingUp,
-      color: "text-success",
-      bgColor: "bg-success/15",
+      color: 'text-success',
+      bgColor: 'bg-success/10',
     },
     {
-      title: "Total em aberto",
+      title: 'Total em Aberto',
       value: formatCurrency(stats.totalAberto),
       icon: BarChart3,
-      color: "text-info",
-      bgColor: "bg-info/15",
+      color: 'text-info',
+      bgColor: 'bg-info/10',
     },
     {
-      title: "Total vencido",
+      title: 'Total Vencido',
       value: formatCurrency(stats.totalVencido),
       icon: AlertCircle,
-      color: "text-destructive",
-      bgColor: "bg-destructive/15",
+      color: 'text-destructive',
+      bgColor: 'bg-destructive/10',
     },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Relatórios
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Análise avançada da carteira de empréstimos.
-        </p>
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Relatórios</h1>
+        <p className="text-muted-foreground mt-1">Análise e estatísticas dos empréstimos</p>
       </div>
 
-      {/* Filtros */}
-      <Card className="glass-panel hover-lift">
-        <div className="glass-glow" />
-        <CardHeader className="relative">
-          <CardTitle>Filtros e exportação</CardTitle>
+      <Card className="apple-card">
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
         </CardHeader>
-        <CardContent className="relative space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select
-                value={filtroStatus}
-                onValueChange={setFiltroStatus}
-              >
-                <SelectTrigger className="rounded-2xl bg-background/70 border-white/10">
-                  <SelectValue placeholder="Todos" />
+              <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -152,20 +117,12 @@ const RelatoriosAvancados = () => {
               </Select>
             </div>
 
-            <div className="flex flex-wrap gap-2 md:col-span-2 justify-end">
-              <Button
-                onClick={handleExportarPDF}
-                variant="outline"
-                className="apple-button"
-              >
+            <div className="flex items-end gap-2">
+              <Button onClick={handleExportarPDF} variant="outline" className="apple-button">
                 <Download className="w-4 h-4 mr-2" />
                 Exportar PDF
               </Button>
-              <Button
-                onClick={handleExportarExcel}
-                variant="outline"
-                className="apple-button"
-              >
+              <Button onClick={handleExportarExcel} variant="outline" className="apple-button">
                 <Download className="w-4 h-4 mr-2" />
                 Exportar Excel
               </Button>
@@ -174,86 +131,63 @@ const RelatoriosAvancados = () => {
         </CardContent>
       </Card>
 
-      {/* Cards de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {cardStats.map((card, index) => {
           const Icon = card.icon;
           return (
-            <Card
-              key={card.title}
-              className="glass-panel hover-lift"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <div className="glass-glow" />
-              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card key={index} className="apple-card animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
                   {card.title}
                 </CardTitle>
-                <div className={`p-2 rounded-xl ${card.bgColor}`}>
-                  <Icon className={`w-4 h-4 ${card.color}`} />
+                <div className={`p-2 rounded-lg ${card.bgColor}`}>
+                  <Icon className={`w-5 h-5 ${card.color}`} />
                 </div>
               </CardHeader>
-              <CardContent className="relative">
-                <div className="text-2xl font-semibold tracking-tight">
-                  {card.value}
-                </div>
+              <CardContent>
+                <div className="text-2xl font-bold text-foreground">{card.value}</div>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      {/* Distribuição por status */}
-      <Card className="glass-panel hover-lift">
-        <div className="glass-glow" />
-        <CardHeader className="relative">
-          <CardTitle>Distribuição por status</CardTitle>
+      <Card className="apple-card">
+        <CardHeader>
+          <CardTitle>Distribuição por Status</CardTitle>
         </CardHeader>
-        <CardContent className="relative">
+        <CardContent>
           <div className="space-y-4">
-            {["ativo", "pago", "vencido"].map((status) => {
-              const count = emprestimos.filter(
-                (e) => e.status === status
-              ).length;
-              const total = emprestimos.length || 1;
+            {['ativo', 'pago', 'vencido'].map((status) => {
+              const count = emprestimosFiltrados.filter(e => e.status === status).length;
+              const total = emprestimosFiltrados.length || 1;
               const percentage = (count / total) * 100;
-              const valorTotal = emprestimos
-                .filter((e) => e.status === status)
-                .reduce(
-                  (acc, emp) => acc + emp.valorTotal,
-                  0
-                );
-
+              const valorTotal = emprestimosFiltrados
+                .filter(e => e.status === status)
+                .reduce((acc, emp) => acc + Number(emp.valor_total), 0);
+              
               const colors: Record<string, string> = {
-                ativo: "bg-info",
-                pago: "bg-success",
-                vencido: "bg-destructive",
+                ativo: 'bg-info',
+                pago: 'bg-success',
+                vencido: 'bg-destructive',
               };
 
               return (
                 <div key={status} className="space-y-2">
-                  <div className="flex justify-between text-xs md:text-sm">
-                    <span className="capitalize font-medium">
-                      {status}
-                    </span>
+                  <div className="flex justify-between text-sm">
+                    <span className="capitalize font-medium">{status}</span>
                     <div className="flex gap-4">
-                      <span className="text-muted-foreground">
-                        {count} empréstimos
-                      </span>
-                      <span className="font-semibold">
-                        {formatCurrency(valorTotal)}
-                      </span>
+                      <span className="text-muted-foreground">{count} empréstimos</span>
+                      <span className="font-semibold">{formatCurrency(valorTotal)}</span>
                     </div>
                   </div>
-                  <div className="w-full bg-black/25 rounded-full h-3 overflow-hidden">
+                  <div className="w-full bg-muted rounded-full h-3">
                     <div
                       className={`h-3 rounded-full ${colors[status]} transition-all duration-300 flex items-center justify-end pr-2`}
                       style={{ width: `${percentage}%` }}
                     >
                       {percentage > 15 && (
-                        <span className="text-[10px] text-white font-medium">
-                          {percentage.toFixed(0)}%
-                        </span>
+                        <span className="text-xs text-white font-medium">{percentage.toFixed(0)}%</span>
                       )}
                     </div>
                   </div>
@@ -264,14 +198,11 @@ const RelatoriosAvancados = () => {
         </CardContent>
       </Card>
 
-      {emprestimos.length === 0 && (
-        <Card className="glass-panel">
-          <div className="glass-glow" />
-          <CardContent className="relative text-center py-12">
+      {emprestimosFiltrados.length === 0 && (
+        <Card className="apple-card">
+          <CardContent className="text-center py-12">
             <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-sm text-muted-foreground">
-              Nenhum dado disponível para os filtros selecionados.
-            </p>
+            <p className="text-muted-foreground">Nenhum dado disponível para os filtros selecionados</p>
           </CardContent>
         </Card>
       )}
