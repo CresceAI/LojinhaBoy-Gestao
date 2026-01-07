@@ -26,66 +26,36 @@ const queryClient = new QueryClient({
   },
 });
 
-// --- COMPONENTE ERROR BOUNDARY CORRIGIDO ---
-interface Props {
-  children: ReactNode;
-}
-
-interface State {
-  hasError: boolean;
-  error: Error | null;
-}
+// --- ERROR BOUNDARY (PROTEÇÃO TOTAL) ---
+interface Props { children: ReactNode; }
+interface State { hasError: boolean; error: Error | null; }
 
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Erro capturado pelo Boundary:", error, errorInfo);
-  }
-
+  static getDerivedStateFromError(error: Error): State { return { hasError: true, error }; }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Crash App:", error, errorInfo); }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-background">
-          <div className="bg-destructive/10 p-6 rounded-2xl border border-destructive/20 max-w-sm">
-            <h2 className="text-xl font-bold mb-2 text-destructive">Ops! Algo deu errado.</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {this.state.error?.message || "Ocorreu um erro inesperado na interface."}
-            </p>
-            <button 
-              onClick={() => window.location.href = '/dashboard'}
-              className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
-            >
-              Recarregar Aplicativo
-            </button>
+        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
+          <div className="bg-destructive/10 p-8 rounded-[2rem] border border-destructive/20 text-center max-w-sm">
+            <h2 className="text-xl font-bold text-destructive mb-2">Erro de Sincronismo</h2>
+            <p className="text-sm text-muted-foreground mb-6">{this.state.error?.message}</p>
+            <button onClick={() => window.location.href = '/'} className="w-full bg-primary text-white font-bold py-3 rounded-xl">Recarregar App</button>
           </div>
         </div>
       );
     }
-
-    // CORREÇÃO AQUI: Adicionado .props antes de .children
-    return this.props.children; 
+    return this.props.children;
   }
 }
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-primary">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
+  if (loading) return <div className="flex items-center justify-center min-h-screen bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   return user ? <Layout>{children}</Layout> : <Navigate to="/login" replace />;
 };
 
@@ -108,15 +78,16 @@ const AppRoutes = () => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+    <BrowserRouter>
+      <TooltipProvider>
         <AuthProvider>
           <AppRoutes />
+          {/* Toasters dentro do Provider mas fora das rotas para evitar erro removeChild */}
+          <Toaster />
+          <Sonner />
         </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 
