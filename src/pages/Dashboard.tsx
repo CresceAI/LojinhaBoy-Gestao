@@ -11,7 +11,7 @@ import {
   PieChart, Wallet
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,24 +19,28 @@ const Dashboard = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { profile } = useAuth();
+  // Adicionado carregamento de clientes para evitar erro ao voltar para tela
   const { emprestimos, loading: loadingEmprestimos } = useEmprestimos();
-  const { clientes } = useClientes();
+  const { clientes, loading: loadingClientes } = useClientes();
   const { checkAndAddNotificacao } = useNotificacoes();
-  const notificationsCheckedRef = useRef(false);
-
-  // --- LÓGICA DE INSIGHTS (Calculada via useMemo com correções defensivas) ---
+  
+  // --- LÓGICA DE INSIGHTS (Defensiva para Mobile) ---
   const insights = useMemo(() => {
-    // 4. Loading Unificado: Retorna null se os dados não estiverem prontos
-    if (!emprestimos || emprestimos.length === 0) return null;
+    // Se não houver dados, retorna objeto zerado para não quebrar a tela
+    if (!emprestimos || emprestimos.length === 0) return {
+      capitalNaRua: 0, lucroRealizado: 0, lucroProjetado: 0, totalRecebido: 0, valorEmAtraso: 0 
+    };
 
     const agora = new Date();
 
     return emprestimos.reduce((acc, emp) => {
-      // 1. Defensiva no reduce: Garante que valores nulos assumam 0 e não quebrem o cálculo
-      const valorTotal = Number(emp.valor_total || 0);
-      const valorPago = Number(emp.valor_pago || 0);
-      const juros = Number(emp.juros || 0);
-      const pendente = Math.max(0, valorTotal - valorPago);
+      // Uso de Number() e ?. para garantir que sempre tenhamos números válidos
+      const valorTotal = Number(emp?.valor_total || 0);
+      const valorPago = Number(emp?.valor_pago || 0);
+      const juros = Number(emp?.juros || 0);
+      const pendente = valorTotal - valorPago;
+      
+      const dataVenc = emp?.data_vencimento ? new Date(emp.data_vencimento) : null;
 
       if (emp.status === 'ativo' || emp.status === 'vencido') {
         acc.capitalNaRua += pendente;
@@ -46,8 +50,8 @@ const Dashboard = () => {
         acc.lucroRealizado += juros;
       }
 
-      // 3. Verificação de Datas: Só calcula atraso se a data existir
-      if (emp.status === 'ativo' && emp.data_vencimento && new Date(emp.data_vencimento) < agora) {
+      // Verificação segura de data usando isValid do date-fns
+      if (emp.status === 'ativo' && dataVenc && isValid(dataVenc) && dataVenc < agora) {
         acc.valorEmAtraso += pendente;
       }
 
@@ -66,22 +70,28 @@ const Dashboard = () => {
   // --- FILTROS DE LISTAS ---
   const proximosVencimentos = useMemo(() => {
     if (!emprestimos) return [];
+    // Filtra apenas os que têm data válida
     return emprestimos
-      .filter(e => e.status === 'ativo' && e.data_vencimento) // Filtro de segurança para data
-      .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
+      .filter(e => e.status === 'ativo' && e.data_vencimento)
+      .sort((a, b) => {
+        const dateA = new Date(a.data_vencimento).getTime();
+        const dateB = new Date(b.data_vencimento).getTime();
+        return dateA - dateB;
+      })
       .slice(0, 4);
   }, [emprestimos]);
 
-  // --- RENDERS ---
-  // 4. Loading Unificado: Previne que o React tente renderizar listas vazias durante o re-fetch
-  if (loadingEmprestimos) return <div className="p-10 text-center animate-pulse">Carregando inteligência financeira...</div>;
+  // --- RENDERS DE CARREGAMENTO ---
+  // Evita a tela branca esperando os dados essenciais carregarem
+  if (loadingEmprestimos || loadingClientes) {
+    return <div className="p-10 text-center animate-pulse text-muted-foreground">Carregando inteligência financeira...</div>;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       
       {/* HEADER DINÂMICO */}
       <div className="flex flex-col gap-1">
-        {/* 2. Safety check no Header: Previne erro ao tentar dar .split em nome indefinido */}
         <h1 className="text-2xl font-bold tracking-tight">
           Olá, {profile?.nome ? profile.nome.split(' ')[0] : 'Gestor'}
         </h1>
@@ -90,26 +100,31 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* CARD PRINCIPAL (ESTILO APPLE BANK) */}
-      <div className="balance-card bg-gradient-to-br from-primary to-primary/80 text-white p-6 rounded-[2rem] shadow-xl overflow-hidden relative">
+      {/* CARD PRINCIPAL (CORRIGIDO CORES LIGHT MODE) */}
+      <div className="balance-card bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 rounded-[2rem] shadow-sm overflow-hidden relative border border-primary/10">
         <div className="relative z-10">
-          <p className="text-white/80 text-xs font-medium uppercase tracking-wider mb-1">Capital Total sob Gestão</p>
-          <h2 className="text-4xl font-bold mb-6">
-            {formatCurrency((insights?.capitalNaRua || 0) + (insights?.totalRecebido || 0))}
+          {/* Corrigido para text-muted-foreground */}
+          <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider mb-1">Capital Total sob Gestão</p>
+          <h2 className="text-4xl font-bold mb-6 text-foreground">
+            {formatCurrency((insights.capitalNaRua) + (insights.totalRecebido))}
           </h2>
           
-          <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+          <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
             <div>
-              <p className="text-white/60 text-[10px] uppercase font-bold">Lucro Realizado</p>
-              <p className="text-lg font-semibold text-accent">{formatCurrency(insights?.lucroRealizado || 0)}</p>
+              {/* Corrigido para text-muted-foreground */}
+              <p className="text-muted-foreground text-[10px] uppercase font-bold">Lucro Realizado</p>
+              {/* Mantido o destaque na cor do valor */}
+              <p className="text-lg font-semibold text-accent">{formatCurrency(insights.lucroRealizado)}</p>
             </div>
             <div>
-              <p className="text-white/60 text-[10px] uppercase font-bold">Capital na Rua</p>
-              <p className="text-lg font-semibold">{formatCurrency(insights?.capitalNaRua || 0)}</p>
+              {/* Corrigido para text-muted-foreground */}
+              <p className="text-muted-foreground text-[10px] uppercase font-bold">Capital na Rua</p>
+              <p className="text-lg font-semibold text-foreground">{formatCurrency(insights.capitalNaRua)}</p>
             </div>
           </div>
         </div>
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+        {/* Ajustado o elemento decorativo para ser mais sutil no modo claro */}
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl"></div>
       </div>
 
       {/* QUICK ACTIONS MOBILE */}
@@ -125,27 +140,29 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatSmall 
           label="Em Atraso" 
-          value={formatCurrency(insights?.valorEmAtraso || 0)} 
+          value={formatCurrency(insights.valorEmAtraso)} 
           icon={AlertCircle} 
-          trend={insights?.valorEmAtraso ? "Risco" : "Saudável"}
-          color={insights?.valorEmAtraso ? "text-destructive" : "text-success"}
+          trend={insights.valorEmAtraso > 0 ? "Risco" : "Saudável"}
+          color={insights.valorEmAtraso > 0 ? "text-destructive" : "text-success"}
         />
         <StatSmall 
           label="Lucro a Receber" 
-          value={formatCurrency((insights?.lucroProjetado || 0) - (insights?.lucroRealizado || 0))} 
+          value={formatCurrency(insights.lucroProjetado - insights.lucroRealizado)} 
           icon={PieChart}
           color="text-primary"
         />
         {!isMobile && (
           <>
-            <StatSmall label="Empréstimos Ativos" value={emprestimos.filter(e => e.status === 'ativo').length} icon={Clock} color="text-info" />
-            <StatSmall label="Total Clientes" value={clientes.length} icon={Users} color="text-slate-500" />
+            {/* Proteção contra undefined com ?. e || 0 */}
+            <StatSmall label="Empréstimos Ativos" value={emprestimos?.filter(e => e.status === 'ativo').length || 0} icon={Clock} color="text-info" />
+            <StatSmall label="Total Clientes" value={clientes?.length || 0} icon={Users} color="text-slate-500" />
           </>
         )}
       </div>
 
       {/* LISTAS DE ATENÇÃO */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Vencimentos */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold flex items-center gap-2">
@@ -158,8 +175,9 @@ const Dashboard = () => {
             {proximosVencimentos.map(emp => (
               <TransactionItem 
                 key={emp.id}
-                title={clientes.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
-                subtitle={emp.data_vencimento ? format(new Date(emp.data_vencimento), "dd 'de' MMM", { locale: ptBR }) : 'Sem data'}
+                // Uso seguro do array de clientes
+                title={clientes?.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
+                subtitle={emp.data_vencimento ? format(new Date(emp.data_vencimento), "dd 'de' MMM", { locale: ptBR }) : '--'}
                 value={formatCurrency(Number(emp.valor_total || 0) - Number(emp.valor_pago || 0))}
                 isVencido={emp.data_vencimento && new Date(emp.data_vencimento) < new Date()}
               />
@@ -167,6 +185,7 @@ const Dashboard = () => {
           </div>
         </section>
 
+        {/* Transações Recentes */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold flex items-center gap-2">
@@ -174,10 +193,11 @@ const Dashboard = () => {
             </h3>
           </div>
           <div className="space-y-3">
-            {emprestimos.filter(e => e.status === 'pago').slice(0, 4).map(emp => (
+            {/* Uso seguro do array emprestimos */}
+            {emprestimos?.filter(e => e.status === 'pago').slice(0, 4).map(emp => (
               <TransactionItem 
                 key={emp.id}
-                title={clientes.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
+                title={clientes?.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
                 subtitle="Pagamento integral"
                 value={formatCurrency(Number(emp.valor_total || 0))}
                 type="positive"
@@ -190,7 +210,7 @@ const Dashboard = () => {
   );
 };
 
-// --- SUB-COMPONENTES AUXILIARES ---
+// --- SUB-COMPONENTES AUXILIARES (COM TIPAGEM CORRIGIDA) ---
 
 const QuickAction = ({ icon: Icon, label, color, onClick }: any) => (
   <button onClick={onClick} className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-card border border-border/40 hover:bg-secondary/50 transition-all">
@@ -201,7 +221,14 @@ const QuickAction = ({ icon: Icon, label, color, onClick }: any) => (
   </button>
 );
 
-const StatSmall = ({ label, value, icon: Icon, color, trend }: any) => (
+// Adicionado tipagem explícita e ? para propriedades opcionais
+const StatSmall = ({ label, value, icon: Icon, color, trend }: { 
+  label: string; 
+  value: string | number; 
+  icon: any; 
+  color: string; 
+  trend?: string; // Opcional
+}) => (
   <div className="bg-card p-4 rounded-2xl border border-border/50 shadow-sm">
     <div className="flex items-center justify-between mb-2">
       <div className={`p-2 rounded-lg bg-secondary`}>
@@ -214,7 +241,14 @@ const StatSmall = ({ label, value, icon: Icon, color, trend }: any) => (
   </div>
 );
 
-const TransactionItem = ({ title, subtitle, value, isVencido, type = "neutral" }: any) => (
+// Adicionado tipagem explícita e ? para propriedades opcionais
+const TransactionItem = ({ title, subtitle, value, isVencido, type = "neutral" }: {
+  title: string;
+  subtitle: string;
+  value: string;
+  isVencido?: boolean; // Opcional
+  type?: "positive" | "neutral";
+}) => (
   <div className="flex items-center justify-between p-4 bg-card rounded-2xl border border-border/30 hover:border-primary/20 transition-all">
     <div className="flex items-center gap-3">
       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
