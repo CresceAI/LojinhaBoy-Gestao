@@ -1,528 +1,243 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getEmprestimos, getClientes, getCurrentUser } from "@/utils/storage";
-import { formatCurrency, isVencimentoProximo } from "@/utils/calculations";
-import { checkAndCreateNotifications } from "@/utils/notifications";
-import {
-  DollarSign,
-  TrendingUp,
-  AlertCircle,
-  Clock,
-  Calendar,
-} from "lucide-react";
-import { DashboardStats, Emprestimo } from "@/types";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-interface EmprestimoComCliente extends Emprestimo {
-  clienteNome: string;
-}
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/hooks/useAuth';
+import { useEmprestimos } from '@/hooks/useEmprestimos';
+import { useClientes } from '@/hooks/useClientes';
+import { useNotificacoes } from '@/hooks/useNotificacoes';
+import { formatCurrency } from '@/utils/calculations';
+import { 
+  DollarSign, TrendingUp, AlertCircle, Clock, 
+  ArrowUpRight, ArrowDownLeft, Users, ChevronRight,
+  PieChart, Wallet
+} from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const isMobile = useIsMobile();
-  const user = getCurrentUser();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalEmprestado: 0,
-    totalRecebido: 0,
-    emprestimosAbertos: 0,
-    vencimentosProximos: 0,
-    lucroRecebido: 0,
-  });
-  const [proximosVencimentos, setProximosVencimentos] = useState<
-    EmprestimoComCliente[]
-  >([]);
-  const [transacoesRecentes, setTransacoesRecentes] = useState<
-    EmprestimoComCliente[]
-  >([]);
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const { emprestimos, loading: loadingEmprestimos } = useEmprestimos();
+  const { clientes } = useClientes();
+  const { checkAndAddNotificacao } = useNotificacoes();
+  const notificationsCheckedRef = useRef(false);
 
-  useEffect(() => {
-    const emprestimos = getEmprestimos();
-    const clientes = getClientes();
-    checkAndCreateNotifications(emprestimos);
+  // --- LÓGICA DE INSIGHTS (Calculada via useMemo para performance) ---
+  const insights = useMemo(() => {
+    if (emprestimos.length === 0) return null;
 
-    const totalEmprestado = emprestimos.reduce(
-      (acc, emp) => acc + emp.valorTotal,
-      0
-    );
-    const totalRecebido = emprestimos.reduce(
-      (acc, emp) => acc + emp.valorPago,
-      0
-    );
-    const emprestimosAbertos = emprestimos.filter(
-      (e) => e.status === "ativo"
-    ).length;
-    const vencimentosProximos = emprestimos.filter(
-      (e) => e.status === "ativo" && isVencimentoProximo(e.dataVencimento)
-    ).length;
+    const agora = new Date();
 
-    const lucroRecebido = emprestimos
-      .filter((e) => e.status === "pago")
-      .reduce((acc, emp) => acc + emp.juros, 0);
+    const totais = emprestimos.reduce((acc, emp) => {
+      const valorTotal = Number(emp.valor_total);
+      const valorPago = Number(emp.valor_pago);
+      const juros = Number(emp.juros);
+      const principal = valorTotal - juros;
+      const pendente = valorTotal - valorPago;
 
-    setStats({
-      totalEmprestado,
-      totalRecebido,
-      emprestimosAbertos,
-      vencimentosProximos,
-      lucroRecebido,
+      // Capital que ainda está para voltar
+      if (emp.status === 'ativo' || emp.status === 'vencido') {
+        acc.capitalNaRua += pendente;
+      }
+
+      // Lucro Realizado (Apenas juros de quem já pagou ou proporcional pago)
+      // Aqui simplificamos: se status é pago, o juros foi realizado.
+      if (emp.status === 'pago') {
+        acc.lucroRealizado += juros;
+      }
+
+      // Vencidos (Inadimplência)
+      if (emp.status === 'ativo' && new Date(emp.data_vencimento) < agora) {
+        acc.valorEmAtraso += pendente;
+      }
+
+      acc.lucroProjetado += juros;
+      acc.totalRecebido += valorPago;
+      return acc;
+    }, { 
+      capitalNaRua: 0, 
+      lucroRealizado: 0, 
+      lucroProjetado: 0, 
+      totalRecebido: 0,
+      valorEmAtraso: 0 
     });
 
-    const proximos = emprestimos
-      .filter((e) => e.status === "ativo")
-      .sort(
-        (a, b) =>
-          new Date(a.dataVencimento).getTime() -
-          new Date(b.dataVencimento).getTime()
-      )
-      .slice(0, 3)
-      .map((emp) => ({
-        ...emp,
-        clienteNome:
-          clientes.find((c) => c.id === emp.clienteId)?.nome ||
-          "Cliente não encontrado",
-      }));
-    setProximosVencimentos(proximos);
+    return totais;
+  }, [emprestimos]);
 
-    const recentes = emprestimos
-      .filter((e) => e.status === "pago")
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() -
-          new Date(a.createdAt).getTime()
-      )
-      .slice(0, 5)
-      .map((emp) => ({
-        ...emp,
-        clienteNome:
-          clientes.find((c) => c.id === emp.clienteId)?.nome ||
-          "Cliente não encontrado",
-      }));
-    setTransacoesRecentes(recentes);
-  }, []);
+  // --- FILTROS DE LISTAS ---
+  const proximosVencimentos = useMemo(() => {
+    return emprestimos
+      .filter(e => e.status === 'ativo')
+      .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
+      .slice(0, 4);
+  }, [emprestimos]);
 
-  const cards = [
-    {
-      title: "Total Emprestado",
-      value: formatCurrency(stats.totalEmprestado),
-      icon: DollarSign,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-    },
-    {
-      title: "Total Recebido",
-      value: formatCurrency(stats.totalRecebido),
-      icon: TrendingUp,
-      color: "text-success",
-      bgColor: "bg-success/10",
-    },
-    {
-      title: "Lucro Recebido",
-      value: formatCurrency(stats.lucroRecebido),
-      icon: TrendingUp,
-      color: "text-success",
-      bgColor: "bg-success/10",
-    },
-    {
-      title: "Empréstimos Ativos",
-      value: stats.emprestimosAbertos.toString(),
-      icon: Clock,
-      color: "text-info",
-      bgColor: "bg-info/10",
-    },
-    {
-      title: "Vencimentos Próximos",
-      value: stats.vencimentosProximos.toString(),
-      icon: AlertCircle,
-      color: "text-warning",
-      bgColor: "bg-warning/10",
-    },
-  ];
-
-  /* ---------- MOBILE ---------- */
-
-  if (isMobile) {
-    return (
-      <div className="space-y-4 pb-6 animate-fade-in">
-        {/* Hero glass card */}
-        <div className="glass-panel hover-lift p-5">
-          <div className="glass-glow" />
-          <div className="relative space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Bem-vindo de  volta
-                </p>
-                <h2 className="text-lg font-semibold">
-                  {user?.name || "Chefe da Lojinha"}
-                </h2>
-              </div>
-              <div className="p-3 rounded-2xl bg-[hsl(var(--neon))/0.2]">
-                <DollarSign className="w-6 h-6 text-[hsl(var(--neon))]" />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">
-                Saldo geral Chefe! (valor emprestado)
-              </p>
-              <p className="text-3xl font-bold tracking-tight text-[hsl(var(--neon))]">
-                {formatCurrency(stats.totalRecebido - stats.totalEmprestado)}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-background/40 backdrop-blur-xl rounded-2xl p-3">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Lucro recebido
-                </p>
-                <p className="text-lg font-semibold text-success">
-                  {formatCurrency(stats.lucroRecebido)}
-                </p>
-              </div>
-              <div className="bg-background/40 backdrop-blur-xl rounded-2xl p-3">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Empréstimos ativos
-                </p>
-                <p className="text-lg font-semibold text-info">
-                  {stats.emprestimosAbertos}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Próximos vencimentos */}
-        {proximosVencimentos.length > 0 && (
-          <Card className="glass-panel hover-lift">
-            <div className="glass-glow" />
-            <CardHeader className="relative pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-warning" />
-                Próximos vencimentos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative space-y-2">
-              {proximosVencimentos.map((emp) => {
-                const diasRestantes = Math.ceil(
-                  (new Date(emp.dataVencimento).getTime() -
-                    new Date().getTime()) /
-                    (1000 * 60 * 60 * 24)
-                );
-                const isVencido = diasRestantes < 0;
-
-                return (
-                  <div
-                    key={emp.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-black/10 hover:bg-black/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`p-2 rounded-full ${
-                          isVencido ? "bg-destructive/15" : "bg-warning/15"
-                        }`}
-                      >
-                        <Calendar
-                          className={`w-4 h-4 ${
-                            isVencido ? "text-destructive" : "text-warning"
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{emp.clienteNome}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {format(
-                            new Date(emp.dataVencimento),
-                            "dd/MM/yyyy",
-                            { locale: ptBR }
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">
-                        {formatCurrency(emp.valorTotal - emp.valorPago)}
-                      </p>
-                      <p
-                        className={`text-[11px] ${
-                          isVencido ? "text-destructive" : "text-warning"
-                        }`}
-                      >
-                        {isVencido
-                          ? `${Math.abs(diasRestantes)}d atraso`
-                          : `${diasRestantes}d restantes`}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Transações recentes */}
-        <Card className="glass-panel hover-lift">
-          <div className="glass-glow" />
-          <CardHeader className="relative pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-success" />
-              Transações recentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            {transacoesRecentes.length > 0 ? (
-              <div className="space-y-2">
-                {transacoesRecentes.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-black/10"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">{emp.clienteNome}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {format(
-                          new Date(emp.createdAt),
-                          "dd/MM/yyyy 'às' HH:mm",
-                          { locale: ptBR }
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-success">
-                        +{formatCurrency(emp.valorTotal)}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Lucro: {formatCurrency(emp.juros)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                Nenhuma transação recente
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Estatísticas rápidas */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="glass-panel hover-lift">
-            <CardContent className="relative pt-4">
-              <div className="glass-glow" />
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-2 rounded-lg bg-primary/15">
-                  <DollarSign className="w-4 h-4 text-primary" />
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground mb-1">
-                Total emprestado
-              </p>
-              <p className="text-base font-semibold">
-                {formatCurrency(stats.totalEmprestado)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-panel hover-lift">
-            <CardContent className="relative pt-4">
-              <div className="glass-glow" />
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-2 rounded-lg bg-success/15">
-                  <TrendingUp className="w-4 h-4 text-success" />
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground mb-1">
-                Total recebido
-              </p>
-              <p className="text-base font-semibold">
-                {formatCurrency(stats.totalRecebido)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  /* ---------- DESKTOP ---------- */
+  // --- RENDERS ---
+  if (loadingEmprestimos) return <div className="p-10 text-center animate-pulse">Carregando inteligência financeira...</div>;
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header + meta rápida */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Visão geral dos seus empréstimos e lucros.
-          </p>
-        </div>
-        <div className="glass-panel px-4 py-3 flex items-center gap-4 hover-lift">
-          <div className="glass-glow" />
-          <div>
-            <p className="text-[11px] text-muted-foreground">
-              Lucro recebido
-            </p>
-            <p className="text-sm font-semibold">
-              {formatCurrency(stats.lucroRecebido)}
-            </p>
-          </div>
-          <div className="h-8 w-px bg-border/60" />
-          <div>
-            <p className="text-[11px] text-muted-foreground">
-              Empréstimos ativos
-            </p>
-            <p className="text-sm font-semibold">
-              {stats.emprestimosAbertos}
-            </p>
-          </div>
-        </div>
+    <div className="space-y-6 animate-fade-in pb-10">
+      
+      {/* HEADER DINÂMICO */}
+      <div className="flex flex-col gap-1">
+        {/* CORREÇÃO AQUI: Alterado de full_name para nome para resolver o erro de TS */}
+        <h1 className="text-2xl font-bold tracking-tight">Olá, {profile?.nome?.split(' ')[0] || 'Gestor'}</h1>
+        <p className="text-muted-foreground text-sm">
+          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+        </p>
       </div>
 
-      {/* Cards principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {cards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <Card
-              key={card.title}
-              className="glass-panel hover-lift"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <div className="glass-glow" />
-              <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
-                  {card.title}
-                </CardTitle>
-                <div className={`p-2 rounded-xl ${card.bgColor}`}>
-                  <Icon className={`w-4 h-4 ${card.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <p className="text-2xl font-semibold tracking-tight">
-                  {card.value}
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* CARD PRINCIPAL (ESTILO APPLE BANK) */}
+      <div className="balance-card bg-gradient-to-br from-primary to-primary/80 text-4xl p-6 rounded-[2rem] shadow-xl overflow-hidden relative">
+        <div className="relative z-10">
+          <p className="text-4xl/80 text-xs font-medium uppercase tracking-wider mb-1">Capital Total sob Gestão</p>
+          <h2 className="text-4xl font-bold mb-6">
+            {formatCurrency((insights?.capitalNaRua || 0) + (insights?.totalRecebido || 0))}
+          </h2>
+          
+          <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+            <div>
+              <p className="text-4xl/60 text-[10px] uppercase font-bold">Lucro Realizado</p>
+              <p className="text-lg font-semibold text-accent">{formatCurrency(insights?.lucroRealizado || 0)}</p>
+            </div>
+            <div>
+              <p className="text-4xl/60 text-[10px] uppercase font-bold">Capital na Rua</p>
+              <p className="text-lg font-semibold">{formatCurrency(insights?.capitalNaRua || 0)}</p>
+            </div>
+          </div>
+        </div>
+        {/* Círculos decorativos de vidro ao fundo */}
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
       </div>
 
-      {/* Listas: transações e vencimentos */}
+      {/* QUICK ACTIONS MOBILE */}
+      {isMobile && (
+        <div className="grid grid-cols-3 gap-3">
+          <QuickAction icon={ArrowUpRight} label="Novo" color="bg-primary/10 text-primary" onClick={() => navigate('/emprestimos')} />
+          <QuickAction icon={ArrowDownLeft} label="Receber" color="bg-success/10 text-success" onClick={() => navigate('/cobranca')} />
+          <QuickAction icon={Users} label="Clientes" color="bg-info/10 text-info" onClick={() => navigate('/clientes')} />
+        </div>
+      )}
+
+      {/* INSIGHTS DE SAÚDE DO NEGÓCIO */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatSmall 
+          label="Em Atraso" 
+          value={formatCurrency(insights?.valorEmAtraso || 0)} 
+          icon={AlertCircle} 
+          trend={insights?.valorEmAtraso ? "Risco" : "Saudável"}
+          color={insights?.valorEmAtraso ? "text-destructive" : "text-success"}
+        />
+        <StatSmall 
+          label="Lucro a Receber" 
+          value={formatCurrency((insights?.lucroProjetado || 0) - (insights?.lucroRealizado || 0))} 
+          icon={PieChart}
+          color="text-primary"
+        />
+        {!isMobile && (
+          <>
+            <StatSmall label="Empréstimos Ativos" value={emprestimos.filter(e => e.status === 'ativo').length} icon={Clock} color="text-info" />
+            <StatSmall label="Total Clientes" value={clientes.length} icon={Users} color="text-slate-500" />
+          </>
+        )}
+      </div>
+
+      {/* LISTAS DE ATENÇÃO */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-panel hover-lift">
-          <div className="glass-glow" />
-          <CardHeader className="relative">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <TrendingUp className="w-4 h-4 text-success" />
-              Transações recentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            {transacoesRecentes.length > 0 ? (
-              <div className="space-y-3">
-                {transacoesRecentes.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-black/10"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">{emp.clienteNome}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(
-                          new Date(emp.createdAt),
-                          "dd/MM/yyyy 'às' HH:mm",
-                          { locale: ptBR }
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-success">
-                        +{formatCurrency(emp.valorTotal)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Lucro: {formatCurrency(emp.juros)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-10 text-muted-foreground text-sm">
-                Nenhuma transação recente
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Vencimentos com lógica de urgência */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-bold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-warning" /> Próximos Recebimentos
+            </h3>
+            <button onClick={() => navigate('/emprestimos')} className="text-xs text-primary font-bold">Ver todos</button>
+          </div>
+          
+          <div className="space-y-3">
+            {proximosVencimentos.map(emp => (
+              <TransactionItem 
+                key={emp.id}
+                title={clientes.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
+                subtitle={format(new Date(emp.data_vencimento), "dd 'de' MMM", { locale: ptBR })}
+                value={formatCurrency(Number(emp.valor_total) - Number(emp.valor_pago))}
+                isVencido={new Date(emp.data_vencimento) < new Date()}
+              />
+            ))}
+          </div>
+        </section>
 
-        <Card className="glass-panel hover-lift">
-          <div className="glass-glow" />
-          <CardHeader className="relative">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <AlertCircle className="w-4 h-4 text-warning" />
-              Próximos vencimentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            {proximosVencimentos.length > 0 ? (
-              <div className="space-y-3">
-                {proximosVencimentos.map((emp) => {
-                  const diasRestantes = Math.ceil(
-                    (new Date(emp.dataVencimento).getTime() -
-                      new Date().getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  );
-                  const isVencido = diasRestantes < 0;
-
-                  return (
-                    <div
-                      key={emp.id}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-black/10"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          {emp.clienteNome}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Vence em{" "}
-                          {format(
-                            new Date(emp.dataVencimento),
-                            "dd/MM/yyyy",
-                            { locale: ptBR }
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold">
-                          {formatCurrency(emp.valorTotal - emp.valorPago)}
-                        </p>
-                        <p
-                          className={`text-xs ${
-                            isVencido ? "text-destructive" : "text-warning"
-                          }`}
-                        >
-                          {isVencido
-                            ? `${Math.abs(diasRestantes)}d atraso`
-                            : `${diasRestantes}d restantes`}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-10 text-muted-foreground text-sm">
-                Nenhum vencimento próximo
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Transações Recentes */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-bold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-success" /> Ganhos Recentes
+            </h3>
+          </div>
+          <div className="space-y-3">
+            {emprestimos.filter(e => e.status === 'pago').slice(0, 4).map(emp => (
+              <TransactionItem 
+                key={emp.id}
+                title={clientes.find(c => c.id === emp.cliente_id)?.nome || 'Cliente'}
+                subtitle="Pagamento integral"
+                value={formatCurrency(Number(emp.valor_total))}
+                type="positive"
+              />
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
 };
+
+// --- SUB-COMPONENTES AUXILIARES ---
+
+const QuickAction = ({ icon: Icon, label, color, onClick }: any) => (
+  <button onClick={onClick} className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-card border border-border/40 hover:bg-secondary/50 transition-all">
+    <div className={`p-3 rounded-xl ${color}`}>
+      <Icon className="w-5 h-5" />
+    </div>
+    <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
+  </button>
+);
+
+const StatSmall = ({ label, value, icon: Icon, color, trend }: any) => (
+  <div className="bg-card p-4 rounded-2xl border border-border/50 shadow-sm">
+    <div className="flex items-center justify-between mb-2">
+      <div className={`p-2 rounded-lg bg-secondary`}>
+        <Icon className={`w-4 h-4 ${color}`} />
+      </div>
+      {trend && <span className={`text-[10px] font-bold ${color}`}>{trend}</span>}
+    </div>
+    <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-tight">{label}</p>
+    <p className="text-lg font-bold truncate">{value}</p>
+  </div>
+);
+
+const TransactionItem = ({ title, subtitle, value, isVencido, type = "neutral" }: any) => (
+  <div className="flex items-center justify-between p-4 bg-card rounded-2xl border border-border/30 hover:border-primary/20 transition-all">
+    <div className="flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+        type === 'positive' ? 'bg-success/10' : isVencido ? 'bg-destructive/10' : 'bg-primary/10'
+      }`}>
+        {type === 'positive' ? <ArrowDownLeft className="w-5 h-5 text-success" /> : <Wallet className="w-5 h-5 text-primary" />}
+      </div>
+      <div>
+        <p className="text-sm font-bold leading-none mb-1">{title}</p>
+        <p className={`text-[11px] ${isVencido ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
+          {isVencido ? 'EM ATRASO' : subtitle}
+        </p>
+      </div>
+    </div>
+    <div className="text-right">
+      <p className={`text-sm font-bold ${type === 'positive' ? 'text-success' : 'text-foreground'}`}>
+        {value}
+      </p>
+    </div>
+  </div>
+);
 
 export default Dashboard;
