@@ -9,23 +9,33 @@ interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
 }
 
 const NavLink = memo(forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
-  ({ className, activeClassName, pendingClassName, to, ...props }, ref) => {
+  ({ 
+    className, 
+    activeClassName, 
+    pendingClassName, 
+    to, 
+    children, 
+    ...props 
+  }, ref) => {
     return (
       <RouterNavLink
         ref={ref}
         to={to}
         className={({ isActive, isPending }) =>
           cn(
-            "transition-all duration-200", 
-            className, 
-            isActive && activeClassName, 
+            "transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            className,
+            isActive && [
+              "font-black shadow-lg scale-[1.02]",
+              activeClassName
+            ],
             isPending && pendingClassName
           )
         }
-        // Removido o aria-current manual que causou o erro. 
-        // O RouterNavLink v6 já coloca aria-current="page" automaticamente quando isActive é true.
         {...props}
-      />
+      >
+        {children}
+      </RouterNavLink>
     );
   }
 ));
