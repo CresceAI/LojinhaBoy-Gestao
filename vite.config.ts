@@ -20,11 +20,11 @@ export default defineConfig(() => ({
     },
   },
   build: {
-    chunkSizeWarningLimit: 1500, // Aumentado para lidar com bibliotecas grandes
+    emptyOutDir: true, // 🧹 Garante que a pasta dist seja limpa antes do build
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        // 🛡️ Agrupamento Seguro: Coloca todas as bibliotecas num único bundle vendor
-        // Isso elimina o erro de "Cannot access 'A' before initialization"
+        // 🛡️ Agrupamento Seguro para evitar erros de inicialização
         manualChunks(id) {
           if (id.includes('node_modules')) {
             return 'vendor';
