@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client.ts';
 import { useAuth } from './useAuth';
 
@@ -6,95 +6,69 @@ export interface Cliente {
   id: string;
   user_id: string;
   nome: string;
-  cpf_cnpj: string | null;
   telefone: string | null;
   email: string | null;
-  endereco: string | null;
   created_at: string;
 }
 
 export const useClientes = () => {
-  const { user } = useAuth();
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
-  const fetchClientes = useCallback(async () => {
-    if (!user) {
-      setClientes([]);
-      setLoading(false);
-      return;
-    }
+  // ✅ Query principal: cache 5min, reutiliza entre telas
+  const {
+    data: clientes = [],
+    isLoading: loading,
+    refetch,
+  } = useQuery({
+    queryKey: ['clientes', user?.id],
+    queryFn: async () => {
+      if (!user?.id) throw new Error('Não autenticado');
 
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('clientes')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('nome', { ascending: true });
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('nome', { ascending: true });
 
-    if (!error && data) {
-      setClientes(data);
-    }
-    setLoading(false);
-  }, [user]);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !authLoading,
+    staleTime: 1000 * 60 * 5,    // 5min fresco ✅
+    gcTime: 1000 * 60 * 15,     // 15min em memória ✅
+    retry: (failureCount, error: any) =>
+      failureCount < 2 && ![401, 403].includes(error?.status),
+    placeholderData: [],         // Sem flash vazio ✅
+  });
 
-  useEffect(() => {
-    fetchClientes();
-  }, [fetchClientes]);
+  // ✅ Mutation: adiciona e atualiza lista automaticamente
+  const addClienteMutation = useMutation({
+    mutationFn: async (cliente: Omit<Cliente, 'id' | 'created_at'>) => {
+      if (!user?.id) throw new Error('Não autenticado');
 
-  const addCliente = async (cliente: Omit<Cliente, 'id' | 'user_id' | 'created_at'>) => {
-    if (!user) return { data: null, error: new Error('Não autenticado') };
+      const { data, error } = await supabase
+        .from('clientes')
+        .insert({ ...cliente, user_id: user.id })
+        .select()
+        .single();
 
-    const { data, error } = await supabase
-      .from('clientes')
-      .insert({ ...cliente, user_id: user.id })
-      .select()
-      .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clientes', user?.id] });
+    },
+  });
 
-    if (!error) {
-      await fetchClientes();
-    }
-
-    return { data, error };
-  };
-
-  const updateCliente = async (id: string, updates: Partial<Cliente>) => {
-    const { error } = await supabase
-      .from('clientes')
-      .update(updates)
-      .eq('id', id);
-
-    if (!error) {
-      await fetchClientes();
-    }
-
-    return { error };
-  };
-
-  const deleteCliente = async (id: string) => {
-    const { error } = await supabase
-      .from('clientes')
-      .delete()
-      .eq('id', id);
-
-    if (!error) {
-      await fetchClientes();
-    }
-
-    return { error };
-  };
-
-  const findClienteByNome = (nome: string): Cliente | undefined => {
-    return clientes.find(c => c.nome.toLowerCase() === nome.toLowerCase());
+  const addCliente = (cliente: any) => {
+    return addClienteMutation.mutateAsync(cliente);
   };
 
   return {
     clientes,
-    loading,
+    loading: loading || authLoading || addClienteMutation.isPending,
     addCliente,
-    updateCliente,
-    deleteCliente,
-    findClienteByNome,
-    refetch: fetchClientes
+    refetch,
   };
 };
