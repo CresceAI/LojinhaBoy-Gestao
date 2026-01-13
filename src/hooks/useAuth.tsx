@@ -1,11 +1,11 @@
-import { 
-  useState, 
-  useEffect, 
-  createContext, 
-  useContext, 
-  ReactNode, 
-  useCallback, 
-  useRef 
+import {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  ReactNode,
+  useCallback,
+  useRef,
 } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client.ts';
@@ -32,87 +32,109 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Perfil | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+
   const mountedRef = useRef(true);
-  const retryCount = useRef(0);
+  const retryCountRef = useRef(0);
+  const currentUserIdRef = useRef<string | null>(null);
   const maxRetries = 3;
 
-  const fetchProfile = useCallback(async (userId: string): Promise<Perfil | null> => {
-    console.log("🔍 Auth: Buscando perfil (tentativa", retryCount.current + 1, ")");
-    
-    const cachedProfile = localStorage.getItem(`profile_${userId}`);
-    if (cachedProfile) {
-      try {
-        const parsed = JSON.parse(cachedProfile) as Perfil;
-        setProfile(parsed);
-        return parsed;
-      } catch {}
-    }
+  const fetchProfile = useCallback(
+    async (userId: string): Promise<Perfil | null> => {
+      if (!userId) return null;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+      console.log('🔍 Auth: Buscando perfil (tentativa', retryCountRef.current + 1, ')');
 
-    try {
-      // ✅ CORREÇÃO 1: .abortSignal() deve vir ANTES do .maybeSingle()
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .abortSignal(controller.signal)
-        .maybeSingle();
+      // Evita chamadas redundantes se já temos o perfil correto em memória
+      if (profile && profile.user_id === userId) {
+        return profile;
+      }
 
-      clearTimeout(timeoutId);
-
-      if (error) {
-        if (retryCount.current < maxRetries && error.message.includes('RLS')) {
-          retryCount.current++;
-          return fetchProfile(userId);
+      // Primeiro tenta cache localStorage
+      const cacheKey = `profile_${userId}`;
+      const cachedProfile = localStorage.getItem(cacheKey);
+      if (cachedProfile) {
+        try {
+          const parsed = JSON.parse(cachedProfile) as Perfil;
+          setProfile(parsed);
+          return parsed;
+        } catch {
+          // se der erro no parse, ignora e segue para buscar do Supabase
         }
-        throw error;
       }
 
-      if (data) {
-        localStorage.setItem(`profile_${userId}`, JSON.stringify(data));
-        setProfile(data);
-        return data;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .abortSignal(controller.signal)
+          .maybeSingle();
+
+        clearTimeout(timeoutId);
+
+        if (error) {
+          // RLS ou outros erros transitórios, com limite de tentativas
+          if (retryCountRef.current < maxRetries && error.message?.includes('RLS')) {
+            retryCountRef.current += 1;
+            return fetchProfile(userId);
+          }
+          throw error;
+        }
+
+        retryCountRef.current = 0;
+
+        if (data) {
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+          setProfile(data);
+          return data;
+        }
+
+        console.log('➕ Auth: Criando perfil vazio');
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: userId,
+            nome: 'Usuário',
+            email: session?.user?.email || '',
+          })
+          .select()
+          .maybeSingle();
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        if (inserted) {
+          localStorage.setItem(cacheKey, JSON.stringify(inserted));
+          setProfile(inserted);
+          return inserted;
+        }
+
+        return null;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        console.error('❌ Auth: Erro/Timeout perfil:', error?.message || error);
+
+        const fallbackProfile: Perfil = {
+          id: crypto.randomUUID(),
+          user_id: userId,
+          nome: 'Carregando...',
+          email: session?.user?.email || '',
+          avatar_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        setProfile(fallbackProfile);
+        return fallbackProfile;
       }
-
-      console.log("➕ Auth: Criando perfil vazio");
-      // ✅ CORREÇÃO 2: 'nome_completo' alterado para 'nome' (conforme seu Database Type)
-      // Removido 'ativo' pois não existe na sua tabela profiles
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({ 
-          user_id: userId, 
-          nome: 'Usuário', 
-          email: session?.user?.email || '' 
-        })
-        .select()
-        .maybeSingle();
-
-      if (!insertError) {
-        return await fetchProfile(userId);
-      }
-
-      return null;
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      console.error("❌ Auth: Erro/Timeout perfil:", error.message);
-      
-      // ✅ CORREÇÃO 3: Fallback usando 'nome' e respeitando a interface Perfil
-      const fallbackProfile: Perfil = {
-        id: crypto.randomUUID(), // Necessário para satisfazer o tipo Perfil
-        user_id: userId,
-        nome: 'Carregando...',
-        email: session?.user?.email || '',
-        avatar_url: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      setProfile(fallbackProfile);
-      return fallbackProfile;
-    }
-  }, [session?.user?.email]);
+    },
+    [profile, session?.user?.email]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -120,16 +142,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeAuth = async () => {
       try {
         setLoading(true);
-        const { data: { session: serverSession } } = await supabase.auth.getSession();
-        
+
+        const {
+          data: { session: serverSession },
+        } = await supabase.auth.getSession();
+
         if (serverSession && mountedRef.current) {
+          currentUserIdRef.current = serverSession.user.id;
           setUser(serverSession.user);
           setSession(serverSession);
           localStorage.setItem('supabase_session', JSON.stringify(serverSession));
           await fetchProfile(serverSession.user.id);
         }
       } catch (error) {
-        console.error("⚠️ Auth: Erro inicialização:", error);
+        console.error('⚠️ Auth: Erro inicialização:', error);
       } finally {
         if (mountedRef.current) {
           setLoading(false);
@@ -140,26 +166,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        if (!mountedRef.current) return;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (!mountedRef.current) return;
 
-        if (currentSession) {
-          setUser(currentSession.user);
-          setSession(currentSession);
-          localStorage.setItem('supabase_session', JSON.stringify(currentSession));
-          await fetchProfile(currentSession.user.id);
-        } else {
-          setUser(null);
-          setSession(null);
-          setProfile(null);
-          localStorage.removeItem('supabase_session');
+      if (currentSession) {
+        const newUserId = currentSession.user.id;
+
+        setUser(currentSession.user);
+        setSession(currentSession);
+        localStorage.setItem('supabase_session', JSON.stringify(currentSession));
+
+        // Só busca perfil novamente se o user realmente mudou
+        if (currentUserIdRef.current !== newUserId) {
+          currentUserIdRef.current = newUserId;
+          retryCountRef.current = 0;
+          await fetchProfile(newUserId);
         }
-
-        setLoading(false);
-        setIsLoading(false);
+      } else {
+        currentUserIdRef.current = null;
+        retryCountRef.current = 0;
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        localStorage.removeItem('supabase_session');
       }
-    );
+
+      setLoading(false);
+      setIsLoading(false);
+    });
 
     return () => {
       mountedRef.current = false;
@@ -173,7 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { nome }, emailRedirectTo: window.location.origin }
+        options: { data: { nome }, emailRedirectTo: window.location.origin },
       });
       setIsLoading(false);
       return { error };
@@ -199,13 +235,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       await supabase.auth.signOut();
+      currentUserIdRef.current = null;
+      retryCountRef.current = 0;
       setUser(null);
       setSession(null);
       setProfile(null);
       localStorage.clear();
       window.location.href = '/login';
     } catch (error) {
-      console.error("❌ Logout erro:", error);
+      console.error('❌ Logout erro:', error);
     } finally {
       setIsLoading(false);
     }
@@ -214,6 +252,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateProfile = async (updates: Partial<Perfil>) => {
     if (!user) return { error: new Error('Não autenticado') };
     setIsLoading(true);
+
     try {
       const { error } = await supabase
         .from('profiles')
@@ -224,7 +263,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem(`profile_${user.id}`);
         await fetchProfile(user.id);
       }
-      
+
       setIsLoading(false);
       return { error };
     } catch (error: any) {
@@ -236,6 +275,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const uploadAvatar = async (file: File) => {
     if (!user) return { url: null, error: new Error('Não autenticado') };
     setIsLoading(true);
+
     try {
       const fileExt = file.name.split('.').pop();
       const filePath = `${user.id}/avatar-${crypto.randomUUID()}.${fileExt}`;
@@ -246,9 +286,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('avatars').getPublicUrl(filePath);
 
       await updateProfile({ avatar_url: publicUrl });
       setIsLoading(false);
@@ -260,15 +300,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const value: AuthContextType = {
-    user, session, profile, loading, isLoading,
-    signUp, signIn, signOut, updateProfile, uploadAvatar
+    user,
+    session,
+    profile,
+    loading,
+    isLoading,
+    signUp,
+    signIn,
+    signOut,
+    updateProfile,
+    uploadAvatar,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
