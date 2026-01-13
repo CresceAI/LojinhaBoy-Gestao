@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client.ts';
 import { useAuth } from './useAuth';
+import { addDays, parseISO, isValid } from 'date-fns';
+import { toast } from 'sonner';
+import { safeNumber } from '@/utils/calculations';
 
 export interface Emprestimo {
   id: string;
@@ -16,100 +19,119 @@ export interface Emprestimo {
   numero_parcelas: number | null;
   status: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export const useEmprestimos = () => {
   const { user } = useAuth();
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // 🛡️ TRAVAS DE SEGURANÇA
+  const isFetched = useRef(false);
+  const isFetching = useRef(false); // Impede requisições paralelas
 
-  const fetchEmprestimos = useCallback(async () => {
+  const fetchEmprestimos = useCallback(async (force = false) => {
     if (!user) {
       setEmprestimos([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('emprestimos')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    // Se já buscou e não for forçado, ou se já estiver buscando agora, cancela a nova chamada
+    if ((isFetched.current && !force) || isFetching.current) return;
 
-    if (!error && data) {
-      setEmprestimos(data);
+    try {
+      isFetching.current = true;
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('emprestimos')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      setEmprestimos(data || []);
+      isFetched.current = true;
+    } catch (err) {
+      console.error("Erro ao buscar empréstimos:", err);
+    } finally {
+      setLoading(false);
+      isFetching.current = false; // Libera para a próxima busca
     }
-    setLoading(false);
   }, [user]);
 
-  useEffect(() => {
-    fetchEmprestimos();
+  useEffect(() => { 
+    fetchEmprestimos(); 
   }, [fetchEmprestimos]);
 
-  const addEmprestimo = async (emprestimo: Omit<Emprestimo, 'id' | 'user_id' | 'created_at'>) => {
-    if (!user) return { data: null, error: new Error('Não autenticado') };
+  // 📈 RENOVAÇÃO: Recebe juros e atualiza data
+  const renovarEmprestimo = async (id: string) => {
+    const emp = emprestimos.find(e => e.id === id);
+    if (!emp) return { error: new Error("Contrato não encontrado") };
 
-    const { data, error } = await supabase
-      .from('emprestimos')
-      .insert({ ...emprestimo, user_id: user.id })
-      .select()
-      .single();
+    const juroDoMes = safeNumber(emp.juros);
+    const novoValorPago = safeNumber(emp.valor_pago) + juroDoMes;
+    const novoValorTotal = safeNumber(emp.valor_total) + juroDoMes;
 
-    if (!error) {
-      await fetchEmprestimos();
-    }
+    const dataBase = emp.data_vencimento ? parseISO(emp.data_vencimento) : new Date();
+    const novaData = addDays(isValid(dataBase) ? dataBase : new Date(), 30).toISOString();
 
-    return { data, error };
-  };
-
-  const updateEmprestimo = async (id: string, updates: Partial<Emprestimo>) => {
     const { error } = await supabase
       .from('emprestimos')
-      .update(updates)
+      .update({ 
+        data_vencimento: novaData,
+        valor_pago: novoValorPago,
+        valor_total: novoValorTotal,
+        updated_at: new Date().toISOString(),
+        status: 'ativo'
+      })
       .eq('id', id);
 
     if (!error) {
-      await fetchEmprestimos();
+      toast.success(`Juro de R$ ${juroDoMes.toFixed(2)} recebido!`);
+      await fetchEmprestimos(true); // Aqui forçamos a atualização
     }
+    return { error };
+  };
 
+  const addEmprestimo = async (dados: any) => {
+    const { data, error } = await supabase.from('emprestimos').insert({ ...dados, user_id: user?.id }).select().single();
+    if (!error) await fetchEmprestimos(true);
+    return { data, error };
+  };
+
+  const updateEmprestimo = async (id: string, updates: any) => {
+    const { error } = await supabase.from('emprestimos').update(updates).eq('id', id);
+    if (!error) await fetchEmprestimos(true);
     return { error };
   };
 
   const deleteEmprestimo = async (id: string) => {
-    const { error } = await supabase
-      .from('emprestimos')
-      .delete()
-      .eq('id', id);
-
-    if (!error) {
-      await fetchEmprestimos();
-    }
-
+    const { error } = await supabase.from('emprestimos').delete().eq('id', id);
+    if (!error) await fetchEmprestimos(true);
     return { error };
   };
 
   const marcarComoPago = async (id: string, valorTotal: number) => {
-    return updateEmprestimo(id, { status: 'pago', valor_pago: valorTotal });
+    const { error } = await supabase
+      .from('emprestimos')
+      .update({ status: 'pago', valor_pago: valorTotal, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (!error) await fetchEmprestimos(true);
+    return { error };
   };
 
-  const getEmprestimosByCliente = (clienteId: string) => {
-    return emprestimos.filter(e => e.cliente_id === clienteId);
-  };
-
-  const getEmprestimosAtivos = () => {
-    return emprestimos.filter(e => e.status === 'ativo' || e.status === 'vencido');
-  };
-
-  return {
-    emprestimos,
-    loading,
-    addEmprestimo,
-    updateEmprestimo,
-    deleteEmprestimo,
-    marcarComoPago,
-    getEmprestimosByCliente,
-    getEmprestimosAtivos,
-    refetch: fetchEmprestimos
+  return { 
+    emprestimos, 
+    loading, 
+    addEmprestimo, 
+    updateEmprestimo, 
+    deleteEmprestimo, 
+    marcarComoPago, 
+    renovarEmprestimo,
+    refetch: () => fetchEmprestimos(true) 
   };
 };

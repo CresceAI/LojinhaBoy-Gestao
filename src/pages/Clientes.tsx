@@ -11,7 +11,16 @@ import { toast } from 'sonner';
 
 const ClientesPage = () => {
   const { clientes, loading: loadingClientes } = useClientes();
-  const { emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo, marcarComoPago, loading: loadingEmprestimos } = useEmprestimos();
+  const { 
+    emprestimos, 
+    addEmprestimo, 
+    updateEmprestimo, 
+    deleteEmprestimo, 
+    marcarComoPago, 
+    renovarEmprestimo, 
+    loading: loadingEmprestimos 
+  } = useEmprestimos();
+  
   const [busca, setBusca] = useState('');
   
   // Modals
@@ -37,7 +46,6 @@ const ClientesPage = () => {
   };
 
   const handleClienteClick = (cliente: any) => {
-    // Transform to expected format
     const clienteTransformed = {
       id: cliente.id,
       nome: cliente.nome,
@@ -47,7 +55,6 @@ const ClientesPage = () => {
     setIsHistoricoOpen(true);
   };
 
-  // Transform emprestimos for modal
   const getEmprestimosForModal = () => {
     return emprestimos.map(emp => ({
       id: emp.id,
@@ -79,11 +86,8 @@ const ClientesPage = () => {
       status: 'ativo'
     });
 
-    if (error) {
-      toast.error('Erro ao adicionar empréstimo');
-    } else {
-      toast.success('Empréstimo adicionado!');
-    }
+    if (error) toast.error('Erro ao adicionar');
+    else toast.success('Adicionado!');
   };
 
   const handleEditEmprestimo = (emprestimo: any) => {
@@ -100,52 +104,35 @@ const ClientesPage = () => {
       data_vencimento: updated.dataVencimento
     });
     
-    if (error) {
-      toast.error('Erro ao atualizar empréstimo');
-    } else {
-      toast.success('Empréstimo atualizado!');
-    }
+    if (error) toast.error('Erro ao atualizar');
+    else { toast.success('Atualizado!'); setIsEditModalOpen(false); }
   };
 
   const handleMarcarPago = async (emprestimo: any) => {
     const { error } = await marcarComoPago(emprestimo.id, emprestimo.valorTotal);
-    if (error) {
-      toast.error('Erro ao marcar como pago');
-    } else {
-      toast.success('Marcado como pago!');
-    }
+    if (!error) toast.success('Quitado!');
   };
 
   const handleDeleteEmprestimo = async (id: string) => {
     const { error } = await deleteEmprestimo(id);
-    if (error) {
-      toast.error('Erro ao excluir empréstimo');
-    } else {
-      toast.success('Empréstimo excluído!');
-    }
+    if (!error) toast.success('Excluído!');
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Carregando...</div>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center min-h-[400px]">Carregando...</div>;
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Clientes</h1>
-        <p className="text-muted-foreground mt-1">Clique em um cliente para ver histórico e adicionar empréstimos</p>
-      </div>
+    <div className="space-y-6 max-w-4xl mx-auto pb-20">
+      <header>
+        <h1 className="text-3xl font-bold">Clientes</h1>
+        <p className="text-muted-foreground">Gerencie sua base de tomadores.</p>
+      </header>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
         <Input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar cliente por nome..."
+          placeholder="Pesquisar cliente..."
           className="pl-10 rounded-xl"
         />
       </div>
@@ -158,37 +145,22 @@ const ClientesPage = () => {
           return (
             <Card 
               key={cliente.id} 
-              className="apple-card animate-scale-in hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02]"
+              className="apple-card hover:scale-[1.02] cursor-pointer transition-all"
               onClick={() => handleClienteClick(cliente)}
             >
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <User className="w-6 h-6 text-primary" />
-                  </div>
-                  
-                  <div className="flex-1 space-y-1">
+                  <div className="p-3 bg-primary/10 rounded-lg"><User className="w-6 h-6 text-primary" /></div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-bold">{cliente.nome}</h3>
-                    
-                    <div className="flex items-center gap-4">
-                      {totalDevendo > 0 ? (
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="w-4 h-4 text-destructive" />
-                          <span className="text-sm font-medium text-destructive">
-                            {formatCurrency(totalDevendo)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-success">✓ Sem dívidas</span>
-                      )}
-                      
-                      <span className="text-xs text-muted-foreground">
-                        {emprestimosAtivos} ativo(s)
+                    <div className="flex items-center gap-4 mt-1">
+                      <span className={`text-sm font-medium ${totalDevendo > 0 ? 'text-destructive' : 'text-success'}`}>
+                        {totalDevendo > 0 ? formatCurrency(totalDevendo) : '✓ Sem dívidas'}
                       </span>
+                      <span className="text-xs text-muted-foreground">{emprestimosAtivos} ativo(s)</span>
                     </div>
                   </div>
-
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  <ChevronRight className="text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
@@ -196,47 +168,23 @@ const ClientesPage = () => {
         })}
       </div>
 
-      {clientesFiltrados.length === 0 && clientes.length > 0 && (
-        <Card className="apple-card">
-          <CardContent className="text-center py-12">
-            <Search className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Nenhum cliente encontrado</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {clientes.length === 0 && (
-        <Card className="apple-card">
-          <CardContent className="text-center py-12">
-            <User className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Nenhum cliente cadastrado ainda</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Clientes são criados automaticamente ao cadastrar empréstimos
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* 🛡️ MODAIS COM TODAS AS FUNÇÕES INTEGRADAS */}
       <ClienteHistoricoModal
         cliente={selectedCliente}
         emprestimos={getEmprestimosForModal()}
         isOpen={isHistoricoOpen}
-        onClose={() => {
-          setIsHistoricoOpen(false);
-          setSelectedCliente(null);
-        }}
+        onClose={() => { setIsHistoricoOpen(false); setSelectedCliente(null); }}
         onAddEmprestimo={handleAddEmprestimo}
         onEditEmprestimo={handleEditEmprestimo}
         onMarcarPago={handleMarcarPago}
+        onRenovarJuros={renovarEmprestimo}
+        onDeleteEmprestimo={handleDeleteEmprestimo} // 🛡️ CONECTADO AO BOTÃO DE LIXEIRA
       />
 
       <EditEmprestimoModal
         emprestimo={editingEmprestimo}
         isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingEmprestimo(null);
-        }}
+        onClose={() => { setIsEditModalOpen(false); setEditingEmprestimo(null); }}
         onSave={handleSaveEdit}
         onDelete={handleDeleteEmprestimo}
       />

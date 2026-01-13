@@ -17,52 +17,57 @@ export const useNotificacoes = () => {
   const { user } = useAuth();
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // 🛡️ Filtro em memória para não repetir verificações na mesma sessão
   const checkedLoansRef = useRef<Set<string>>(new Set());
 
-  const fetchNotificacoes = useCallback(async () => {
+  const fetchNotificacoes = useCallback(async (force = false) => {
     if (!user) {
       setNotificacoes([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('notificacoes')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('notificacoes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setNotificacoes(data);
+      if (!error && data) {
+        setNotificacoes(data);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [user]);
 
   useEffect(() => {
     fetchNotificacoes();
   }, [fetchNotificacoes]);
 
+  // 🔔 ADICIONA NOTIFICAÇÃO (Com trava de duplicidade assertiva)
   const checkAndAddNotificacao = useCallback(async (notificacao: Omit<Notificacao, 'id' | 'user_id' | 'created_at' | 'lida'>) => {
-    if (!user) return { data: null, error: new Error('Não autenticado') };
+    if (!user) return { error: new Error('Não autenticado') };
 
-    // Create unique key for this loan+type combination
     const uniqueKey = `${notificacao.emprestimo_id}-${notificacao.tipo}`;
     
-    // Skip if already checked in this session
+    // 1. Trava em memória (Rápido)
     if (checkedLoansRef.current.has(uniqueKey)) {
       return { data: null, error: null, skipped: true };
     }
     
-    // Mark as checked
     checkedLoansRef.current.add(uniqueKey);
 
-    // Check if notification already exists in database
+    // 2. Trava no Banco de Dados (Segurança)
     const { data: existing } = await supabase
       .from('notificacoes')
       .select('id')
       .eq('emprestimo_id', notificacao.emprestimo_id)
       .eq('tipo', notificacao.tipo)
+      .eq('lida', false) // Se já existe uma não lida, não cria outra
       .maybeSingle();
 
     if (existing) return { data: null, error: null, exists: true };
@@ -74,7 +79,6 @@ export const useNotificacoes = () => {
       .single();
 
     if (!error && data) {
-      // Update local state without refetching
       setNotificacoes(prev => [data, ...prev]);
     }
 
@@ -90,7 +94,6 @@ export const useNotificacoes = () => {
     if (!error) {
       setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
     }
-
     return { error };
   };
 
@@ -106,7 +109,6 @@ export const useNotificacoes = () => {
     if (!error) {
       setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
     }
-
     return { error };
   };
 
@@ -119,12 +121,7 @@ export const useNotificacoes = () => {
     if (!error) {
       setNotificacoes(prev => prev.filter(n => n.id !== id));
     }
-
     return { error };
-  };
-
-  const getUnreadCount = () => {
-    return notificacoes.filter(n => !n.lida).length;
   };
 
   return {
@@ -134,7 +131,7 @@ export const useNotificacoes = () => {
     marcarComoLida,
     marcarTodasComoLidas,
     deleteNotificacao,
-    getUnreadCount,
-    refetch: fetchNotificacoes
+    getUnreadCount: () => notificacoes.filter(n => !n.lida).length,
+    refetch: () => fetchNotificacoes(true)
   };
 };

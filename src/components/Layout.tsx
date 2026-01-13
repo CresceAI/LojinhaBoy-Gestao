@@ -10,27 +10,14 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from './ui/sheet';
 import { useNotificacoes } from '@/hooks/useNotificacoes';
+import { NavLink } from './NavLink'; // Seu novo componente compatível
 
-interface LayoutProps {
-  children: ReactNode;
-}
-
-const Layout = ({ children }: LayoutProps) => {
+const Layout = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { profile, signOut } = useAuth();
   const isMobile = useIsMobile();
-  
-  // 🛡️ Proteção notificações
-  const notificacoes = useNotificacoes();
-  const unreadCount = typeof notificacoes?.getUnreadCount === 'function' 
-    ? Math.max(0, notificacoes.getUnreadCount() || 0)
-    : 0;
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
-  };
+  const { getUnreadCount } = useNotificacoes();
+  const unreadCount = typeof getUnreadCount === 'function' ? getUnreadCount() : 0;
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -41,223 +28,149 @@ const Layout = ({ children }: LayoutProps) => {
     { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
   ];
 
-  const getInitials = (nome: string) => {
-    return nome.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
-  // 🖼️ MOBILE LAYOUT com BACKGROUND
-  if (isMobile) {
-    return (
-      <div className="flex flex-col min-h-screen relative">
-        {/* 🎨 BACKGROUND SUA CLASSE */}
+  return (
+    <div className="flex min-h-screen relative font-sans antialiased overflow-x-hidden">
+      
+      {/* 🎨 BACKGROUND INCRÍVEL E ADAPTÁVEL */}
+      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div 
-          className="fixed inset-0 -z-10 bg-login-pattern-custom"
-          style={{
-            backgroundSize: 'cover',
-            backgroundPosition: 'center bottom',
-            backgroundAttachment: 'fixed'
-          }}
+          className="absolute inset-0 bg-login-pattern-custom bg-no-repeat bg-cover 
+                     transition-all duration-700 ease-in-out bg-fixed
+                     bg-[position:center_bottom] md:bg-center
+                     opacity-[0.25] dark:opacity-[0.08]
+                     brightness-110 contrast-125 saturate-50 dark:brightness-50 dark:contrast-150"
         />
-        
-        {/* Header */}
-        <header className="sticky top-0 z-40 px-4 pt-safe pb-3 header-glass bg-background/95 backdrop-blur-xl border-b border-border/40 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10 ring-2 ring-primary/20 shadow-lg">
-                <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.nome} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                  {profile?.nome ? getInitials(profile.nome) : <User className="w-4 h-4" />}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <p className="text-[10px] text-muted-foreground leading-tight">Bem-vindo</p>
-                <p className="font-semibold text-foreground text-sm leading-tight">{profile?.nome?.split(' ')[0] || 'Usuário'}</p>
+        {/* Gradientes Liquid para suavizar o fundo e dar profundidade */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background opacity-90" />
+        <div className="absolute inset-0 bg-background/20 dark:bg-black/20 backdrop-blur-[1px]" />
+      </div>
+
+      {isMobile ? (
+        // --- MOBILE FINTECH EXPERIENCE ---
+        <div className="flex flex-col w-full min-h-screen">
+          <header className="sticky top-0 z-40 px-4 py-4 bg-background/60 backdrop-blur-3xl border-b border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10 border-2 border-primary/20 shadow-lg">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary text-white font-black">
+                    {profile?.nome?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">Status: Pro</span>
+                  <p className="font-black text-foreground text-sm tracking-tight">{profile?.nome?.split(' ')[0]}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <DarkModeToggle />
+                <NavLink to="/notificacoes" className="relative p-2.5 rounded-2xl bg-secondary/40 backdrop-blur-lg border border-white/10 active:scale-95">
+                  <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-primary animate-pulse' : ''}`} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive text-[10px] font-black text-white ring-2 ring-background">
+                      {unreadCount}
+                    </span>
+                  )}
+                </NavLink>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <DarkModeToggle />
-              <button 
-                onClick={() => navigate('/notificacoes')}
-                className="relative p-2.5 rounded-xl glass-button bg-background/95 backdrop-blur-lg shadow-md hover:shadow-lg"
-              >
-                <Bell className="w-5 h-5 text-foreground" />
-                {unreadCount > 0 && (
-                  <span className="notification-badge">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </header>
+          </header>
 
-        {/* Main Content com Overlay */}
-        <main className="flex-1 overflow-auto relative bg-gradient-to-t from-background/98 via-background/95 to-background/90 backdrop-blur-sm">
-          <div className="px-4 py-4 pb-28 min-h-screen">
-            {children}
-          </div>
-        </main>
+          <main className="flex-1 relative z-10 px-4 py-6 pb-32">{children}</main>
 
-        {/* Bottom Nav */}
-        <nav className="bottom-nav pb-safe z-50">
-          <div className="flex items-center justify-around px-2 py-3 bg-card/98 backdrop-blur-2xl rounded-t-3xl shadow-2xl border-t border-border/60">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className={`nav-item ${location.pathname === '/dashboard' ? 'nav-item-active' : 'text-muted-foreground'}`}
-            >
-              <LayoutDashboard className="w-5 h-5" />
-              <span className="text-[10px] font-medium">Home</span>
-            </button>
+          {/* Tab Bar com Degradê Ativo */}
+          <nav className="fixed bottom-0 left-0 right-0 z-50 px-6 pb-8 pointer-events-none">
+            <div className="flex items-center justify-around py-3 bg-card/70 backdrop-blur-3xl rounded-[2.5rem] border border-white/10 shadow-2xl pointer-events-auto">
+              <NavTab to="/dashboard" icon={LayoutDashboard} label="Home" />
+              <NavTab to="/relatorios" icon={BarChart3} label="Dados" />
+              
+              <NavLink to="/emprestimos" className="flex h-14 w-14 -mt-14 items-center justify-center rounded-full bg-gradient-to-tr from-primary to-primary-600 text-white shadow-xl shadow-primary/40 border-4 border-background">
+                <Plus className="w-8 h-8" />
+              </NavLink>
 
-            <button
-              onClick={() => navigate('/relatorios')}
-              className={`nav-item ${location.pathname === '/relatorios' ? 'nav-item-active' : 'text-muted-foreground'}`}
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span className="text-[10px] font-medium">Analytics</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/emprestimos')}
-              className="action-btn -mt-8 bg-gradient-to-r from-primary to-primary-500 shadow-2xl shadow-primary/30 hover:shadow-primary/50 active:scale-[0.96]"
-            >
-              <Plus className="w-6 h-6 text-primary-foreground" />
-            </button>
-
-            <button
-              onClick={() => navigate('/cobranca')}
-              className={`nav-item ${location.pathname === '/cobranca' ? 'nav-item-active' : 'text-muted-foreground'}`}
-            >
-              <MessageSquare className="w-5 h-5" />
-              <span className="text-[10px] font-medium">Cobrança</span>
-            </button>
-
-            <Sheet>
-              <SheetTrigger asChild>
-                <button className="nav-item text-muted-foreground hover:text-foreground">
-                  <Menu className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">Menu</span>
-                </button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="rounded-t-3xl pb-safe bg-card/98 backdrop-blur-2xl border-t border-border/50">
-                <SheetHeader className="pb-6">
-                  <SheetTitle className="text-left font-bold text-lg">Navegação</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-2">
-                  {menuItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <button
-                        key={item.path}
-                        onClick={() => navigate(item.path)}
-                        className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all shadow-sm hover:shadow-md ${
-                          isActive 
-                            ? 'bg-primary text-primary-foreground shadow-primary/20' 
-                            : 'text-foreground hover:bg-secondary/80'
-                        }`}
+              <NavTab to="/cobranca" icon={MessageSquare} label="Cobrar" />
+              
+              <Sheet>
+                <SheetTrigger asChild>
+                  <button className="flex flex-col items-center gap-1 opacity-60"><Menu className="w-6 h-6" /></button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="rounded-t-[3rem] bg-card/95 backdrop-blur-2xl border-t border-white/10 pb-12">
+                  <SheetHeader className="mb-6"><SheetTitle className="text-center font-black uppercase text-[10px] tracking-widest text-muted-foreground">Menu LojinhaBoy</SheetTitle></SheetHeader>
+                  <div className="grid grid-cols-1 gap-2">
+                    {menuItems.map((item) => (
+                      <NavLink 
+                        key={item.path} 
+                        to={item.path} 
+                        activeClassName="bg-gradient-to-r from-primary to-primary-600 text-white shadow-lg shadow-primary/20"
+                        className="flex items-center gap-4 p-4 rounded-3xl font-black text-sm uppercase transition-all hover:bg-secondary/50"
                       >
-                        <Icon className="w-5 h-5 flex-shrink-0" />
-                        <span className="font-semibold">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                  <div className="pt-4 border-t border-border/50 mt-4">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-destructive hover:bg-destructive/10 transition-all shadow-sm hover:shadow-md"
-                    >
-                      <LogOut className="w-5 h-5" />
-                      <span className="font-semibold">Sair da Conta</span>
+                        <item.icon className="w-5 h-5" /> {item.label}
+                      </NavLink>
+                    ))}
+                    <button onClick={() => signOut()} className="flex items-center gap-4 p-4 rounded-3xl font-black text-sm uppercase text-destructive border border-destructive/20 mt-4 active:bg-destructive/10">
+                      <LogOut className="w-5 h-5" /> Sair
                     </button>
                   </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </nav>
-      </div>
-    );
-  }
-
-  // 🖼️ DESKTOP LAYOUT com BACKGROUND
-  return (
-    <div className="flex h-screen relative">
-      {/* 🎨 BACKGROUND SUA CLASSE */}
-      <div 
-        className="fixed inset-0 -z-10 bg-login-pattern-custom"
-        style={{
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
-      />
-      
-      {/* Sidebar */}
-      <aside className="w-64 bg-card/98 backdrop-blur-2xl border-r border-border/60 flex flex-col shadow-2xl shadow-black/10 relative z-10">
-        <div className="p-6 border-b border-border/50">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-black bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text">
-              Lojinha-Boy
-            </h1>
-            <DarkModeToggle />
-          </div>
-          
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-secondary/30 to-secondary/10 border border-border/40 shadow-inner">
-            <Avatar className="h-12 w-12 ring-3 ring-primary/30 shadow-xl">
-              <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.nome} />
-              <AvatarFallback className="bg-gradient-to-br from-primary to-primary-foreground text-primary-foreground font-bold text-lg flex items-center justify-center">
-                {profile?.nome ? getInitials(profile.nome) : <User className="w-5 h-5" />}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-base font-black truncate mb-1">{profile?.nome || 'Usuário'}</p>
-              <p className="text-sm text-muted-foreground truncate font-mono">{profile?.email}</p>
+                </SheetContent>
+              </Sheet>
             </div>
-          </div>
+          </nav>
         </div>
+      ) : (
+        // --- DESKTOP PRO SIDEBAR ---
+        <div className="flex w-full h-screen overflow-hidden">
+          <aside className="w-72 bg-card/30 backdrop-blur-3xl border-r border-white/5 flex flex-col shadow-2xl z-20">
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-8">
+                <h1 className="text-2xl font-black italic tracking-tighter text-primary">LojinhaBoy<span className="text-foreground">Pro</span></h1>
+                <DarkModeToggle />
+              </div>
+              <div className="flex items-center gap-4 p-4 rounded-[2rem] bg-secondary/30 border border-white/10 shadow-sm">
+                <Avatar className="h-12 w-12 border-2 border-primary/20">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="font-black bg-primary text-white">{profile?.nome?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black truncate leading-none mb-1">{profile?.nome}</p>
+                  <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-500 uppercase animate-pulse">● Online</div>
+                </div>
+              </div>
+            </div>
 
-        <nav className="flex-1 p-6 space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-lg group ${
-                  isActive
-                    ? 'bg-gradient-to-r from-primary to-primary-500 text-primary-foreground shadow-primary/30 hover:shadow-primary/40' 
-                    : 'text-foreground/80 hover:bg-gradient-to-r hover:from-secondary/50 hover:shadow-md bg-secondary/20'
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-primary-foreground' : 'group-hover:text-primary'}`} />
-                <span className="font-semibold text-sm flex-1 text-left">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="p-6 border-t border-border/60">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-destructive hover:bg-destructive/10 transition-all shadow-sm hover:shadow-md font-semibold"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Sair da Conta</span>
-          </button>
+            <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+              {menuItems.map((item) => (
+                <NavLink 
+                  key={item.path} 
+                  to={item.path} 
+                  activeClassName="bg-gradient-to-r from-primary to-primary-600 text-white shadow-xl shadow-primary/30 scale-[1.02]"
+                  className="w-full flex items-center gap-4 px-6 py-4 rounded-[1.5rem] transition-all duration-300 font-black text-xs uppercase tracking-widest text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                  {item.label === 'Notificações' && unreadCount > 0 && (
+                    <span className="ml-auto bg-destructive text-white text-[10px] font-black px-2 py-0.5 rounded-full">{unreadCount}</span>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="p-6"><button onClick={() => signOut()} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-destructive hover:bg-destructive/10 transition-all font-black text-xs uppercase tracking-widest border border-transparent hover:border-destructive/20"><LogOut className="w-5 h-5" /> Sair</button></div>
+          </aside>
+          <main className="flex-1 overflow-auto p-8 lg:p-12 relative bg-gradient-to-br from-transparent to-primary/5">{children}</main>
         </div>
-      </aside>
-
-      {/* Main Content com Overlay */}
-      <main className="flex-1 overflow-auto relative bg-gradient-to-b from-background/95 via-background/92 to-background/98 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto p-8 lg:p-12 min-h-screen">
-          {children}
-        </div>
-      </main>
+      )}
     </div>
   );
 };
+
+const NavTab = ({ to, icon: Icon, label }: any) => (
+  <NavLink 
+    to={to} 
+    activeClassName="text-primary scale-110" 
+    className="flex flex-col items-center gap-1 transition-all text-muted-foreground opacity-60"
+  >
+    <div className="p-1.5 rounded-xl"><Icon className="w-6 h-6" /></div>
+    <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
+  </NavLink>
+);
 
 export default Layout;
