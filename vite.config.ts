@@ -5,7 +5,6 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
-  // Mantém sua configuração original de base e servidor
   base: process.env.VITE_BASE_PATH || "/",
   server: {
     host: "::",
@@ -20,19 +19,15 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // ⚡ NOVA SEÇÃO: OTIMIZAÇÃO DE BUILD (FINTECH PRO)
   build: {
-    chunkSizeWarningLimit: 1000, // Aumenta o limite para o aviso sumir
+    chunkSizeWarningLimit: 1500, // Aumentado para lidar com bibliotecas grandes
     rollupOptions: {
       output: {
+        // 🛡️ Agrupamento Seguro: Coloca todas as bibliotecas num único bundle vendor
+        // Isso elimina o erro de "Cannot access 'A' before initialization"
         manualChunks(id) {
-          // Separa as bibliotecas em pedaços menores para carregar mais rápido no mobile
           if (id.includes('node_modules')) {
-            if (id.includes('react')) return 'vendor-react';
-            if (id.includes('@supabase')) return 'vendor-supabase';
-            if (id.includes('lucide-react') || id.includes('@radix-ui')) return 'vendor-ui';
-            if (id.includes('date-fns')) return 'vendor-utils';
-            return 'vendor-libs'; // Outras bibliotecas
+            return 'vendor';
           }
         },
       },
