@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRef } from 'react';  // ✅ useRef do React
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';  // ✅ React Query separado
 import { supabase } from '@/integrations/supabase/client.ts';
 import { useAuth } from './useAuth';
 
@@ -14,124 +15,147 @@ export interface Notificacao {
 }
 
 export const useNotificacoes = () => {
-  const { user } = useAuth();
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // 🛡️ Filtro em memória para não repetir verificações na mesma sessão
+  const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const checkedLoansRef = useRef<Set<string>>(new Set());
 
-  const fetchNotificacoes = useCallback(async (force = false) => {
-    if (!user) {
-      setNotificacoes([]);
-      setLoading(false);
-      return;
-    }
+  // ✅ Query principal: cache 2min para notificações
+  const {
+    data: notificacoes = [],
+    isLoading: loading,
+    refetch,
+  } = useQuery({
+    queryKey: ['notificacoes', user?.id],
+    queryFn: async () => {
+      if (!user?.id) throw new Error('Não autenticado');
 
-    try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('notificacoes')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setNotificacoes(data);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !authLoading,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+    retry: (failureCount, error: any) =>
+      failureCount < 1 && ![401, 403].includes(error?.status),
+    placeholderData: [],
+  });
+
+  // ✅ Mutation: CHECK & ADD
+  const checkAndAddNotificacaoMutation = useMutation({
+    mutationFn: async (notificacao: Omit<Notificacao, 'id' | 'user_id' | 'created_at' | 'lida'>) => {
+      if (!user?.id) throw new Error('Não autenticado');
+
+      const uniqueKey = `${notificacao.emprestimo_id}-${notificacao.tipo}`;
+
+      if (checkedLoansRef.current.has(uniqueKey)) {
+        return { data: null, error: null, skipped: true };
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
 
-  useEffect(() => {
-    fetchNotificacoes();
-  }, [fetchNotificacoes]);
+      checkedLoansRef.current.add(uniqueKey);
 
-  // 🔔 ADICIONA NOTIFICAÇÃO (Com trava de duplicidade assertiva)
-  const checkAndAddNotificacao = useCallback(async (notificacao: Omit<Notificacao, 'id' | 'user_id' | 'created_at' | 'lida'>) => {
-    if (!user) return { error: new Error('Não autenticado') };
+      const { data: existing } = await supabase
+        .from('notificacoes')
+        .select('id')
+        .eq('emprestimo_id', notificacao.emprestimo_id)
+        .eq('tipo', notificacao.tipo)
+        .eq('lida', false)
+        .maybeSingle();
 
-    const uniqueKey = `${notificacao.emprestimo_id}-${notificacao.tipo}`;
-    
-    // 1. Trava em memória (Rápido)
-    if (checkedLoansRef.current.has(uniqueKey)) {
-      return { data: null, error: null, skipped: true };
-    }
-    
-    checkedLoansRef.current.add(uniqueKey);
+      if (existing) return { data: null, error: null, exists: true };
 
-    // 2. Trava no Banco de Dados (Segurança)
-    const { data: existing } = await supabase
-      .from('notificacoes')
-      .select('id')
-      .eq('emprestimo_id', notificacao.emprestimo_id)
-      .eq('tipo', notificacao.tipo)
-      .eq('lida', false) // Se já existe uma não lida, não cria outra
-      .maybeSingle();
+      const { data, error } = await supabase
+        .from('notificacoes')
+        .insert({ ...notificacao, user_id: user.id, lida: false })
+        .select()
+        .single();
 
-    if (existing) return { data: null, error: null, exists: true };
+      if (error) throw error;
+      return { data, error: null };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificacoes', user?.id] });
+    },
+  });
 
-    const { data, error } = await supabase
-      .from('notificacoes')
-      .insert({ ...notificacao, user_id: user.id, lida: false })
-      .select()
-      .single();
-
-    if (!error && data) {
-      setNotificacoes(prev => [data, ...prev]);
-    }
-
-    return { data, error };
-  }, [user]);
-
-  const marcarComoLida = async (id: string) => {
-    const { error } = await supabase
-      .from('notificacoes')
-      .update({ lida: true })
-      .eq('id', id);
-
-    if (!error) {
-      setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
-    }
-    return { error };
+  const checkAndAddNotificacao = (
+    notificacao: Omit<Notificacao, 'id' | 'user_id' | 'created_at' | 'lida'>
+  ) => {
+    return checkAndAddNotificacaoMutation.mutateAsync(notificacao);
   };
 
-  const marcarTodasComoLidas = async () => {
-    if (!user) return { error: new Error('Não autenticado') };
-    
-    const { error } = await supabase
-      .from('notificacoes')
-      .update({ lida: true })
-      .eq('user_id', user.id)
-      .eq('lida', false);
+  // ✅ Mutation: MARCAR LIDA
+  const marcarComoLidaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('notificacoes')
+        .update({ lida: true })
+        .eq('id', id);
 
-    if (!error) {
-      setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
-    }
-    return { error };
+      if (error) throw error;
+      return { error: null };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificacoes', user?.id] });
+    },
+  });
+
+  const marcarComoLida = (id: string) => {
+    return marcarComoLidaMutation.mutateAsync(id);
   };
 
-  const deleteNotificacao = async (id: string) => {
-    const { error } = await supabase
-      .from('notificacoes')
-      .delete()
-      .eq('id', id);
+  // ✅ Mutation: TODAS LIDAS
+  const marcarTodasComoLidasMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('Não autenticado');
 
-    if (!error) {
-      setNotificacoes(prev => prev.filter(n => n.id !== id));
-    }
-    return { error };
+      const { error } = await supabase
+        .from('notificacoes')
+        .update({ lida: true })
+        .eq('user_id', user.id)
+        .eq('lida', false);
+
+      if (error) throw error;
+      return { error: null };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificacoes', user?.id] });
+    },
+  });
+
+  const marcarTodasComoLidas = () => {
+    return marcarTodasComoLidasMutation.mutateAsync();
+  };
+
+  // ✅ Mutation: DELETE
+  const deleteNotificacaoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('notificacoes').delete().eq('id', id);
+      if (error) throw error;
+      return { error: null };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificacoes', user?.id] });
+    },
+  });
+
+  const deleteNotificacao = (id: string) => {
+    return deleteNotificacaoMutation.mutateAsync(id);
   };
 
   return {
     notificacoes,
-    loading,
+    loading: loading || authLoading,
     checkAndAddNotificacao,
     marcarComoLida,
     marcarTodasComoLidas,
     deleteNotificacao,
-    getUnreadCount: () => notificacoes.filter(n => !n.lida).length,
-    refetch: () => fetchNotificacoes(true)
+    getUnreadCount: () => notificacoes.filter((n) => !n.lida).length,
+    refetch,
   };
 };
