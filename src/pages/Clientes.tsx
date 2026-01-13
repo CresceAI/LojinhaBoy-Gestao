@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useClientes } from '@/hooks/useClientes';
 import { useEmprestimos } from '@/hooks/useEmprestimos';
 import { formatCurrency } from '@/utils/calculations';
-import { Search, User, DollarSign, ChevronRight } from 'lucide-react';
+import { Search, User, ChevronRight } from 'lucide-react';
 import ClienteHistoricoModal from '@/components/ClienteHistoricoModal';
 import EditEmprestimoModal from '@/components/EditEmprestimoModal';
 import { toast } from 'sonner';
@@ -31,31 +31,26 @@ const ClientesPage = () => {
 
   const loading = loadingClientes || loadingEmprestimos;
 
-  const clientesFiltrados = clientes.filter(cliente =>
-    cliente.nome.toLowerCase().includes(busca.toLowerCase())
-  );
+  // 🚀 OTIMIZAÇÃO: Filtra e calcula dados apenas quando necessário (evita requisições altas)
+  const clientesProcessados = useMemo(() => {
+    return clientes.filter(cliente =>
+      cliente.nome.toLowerCase().includes(busca.toLowerCase())
+    ).map(cliente => {
+      const ativos = emprestimos.filter(e => 
+        e.cliente_id === cliente.id && (e.status === 'ativo' || e.status === 'vencido')
+      );
+      const totalDevendo = ativos.reduce((acc, e) => acc + (Number(e.valor_total) - Number(e.valor_pago)), 0);
+      
+      return {
+        ...cliente,
+        totalDevendo,
+        emprestimosAtivos: ativos.length
+      };
+    });
+  }, [clientes, busca, emprestimos]);
 
-  const getTotalDevendo = (clienteId: string) => {
-    return emprestimos
-      .filter(e => e.cliente_id === clienteId && (e.status === 'ativo' || e.status === 'vencido'))
-      .reduce((acc, e) => acc + (Number(e.valor_total) - Number(e.valor_pago)), 0);
-  };
-
-  const getEmprestimosAtivos = (clienteId: string) => {
-    return emprestimos.filter(e => e.cliente_id === clienteId && (e.status === 'ativo' || e.status === 'vencido')).length;
-  };
-
-  const handleClienteClick = (cliente: any) => {
-    const clienteTransformed = {
-      id: cliente.id,
-      nome: cliente.nome,
-      createdAt: cliente.created_at
-    };
-    setSelectedCliente(clienteTransformed);
-    setIsHistoricoOpen(true);
-  };
-
-  const getEmprestimosForModal = () => {
+  // 🛠️ ADAPTER: Transforma os dados do Supabase para o formato que o seu Modal espera (camelCase)
+  const emprestimosParaModal = useMemo(() => {
     return emprestimos.map(emp => ({
       id: emp.id,
       clienteId: emp.cliente_id,
@@ -70,29 +65,32 @@ const ClientesPage = () => {
       status: emp.status as 'ativo' | 'pago' | 'vencido',
       createdAt: emp.created_at
     }));
+  }, [emprestimos]);
+
+  const handleClienteClick = (cliente: any) => {
+    setSelectedCliente({
+      id: cliente.id,
+      nome: cliente.nome,
+      createdAt: cliente.created_at
+    });
+    setIsHistoricoOpen(true);
   };
 
-  const handleAddEmprestimo = async (emprestimo: any) => {
+  const handleAddEmprestimo = async (emp: any) => {
     const { error } = await addEmprestimo({
-      cliente_id: emprestimo.clienteId,
-      valor: emprestimo.valor,
-      juros: emprestimo.juros,
-      valor_total: emprestimo.valorTotal,
+      cliente_id: emp.clienteId,
+      valor: emp.valor,
+      juros: emp.juros,
+      valor_total: emp.valorTotal,
       valor_pago: 0,
-      data_inicio: emprestimo.dataInicio,
-      data_vencimento: emprestimo.dataVencimento,
-      forma_pagamento: emprestimo.formaPagamento || 'vista',
-      numero_parcelas: emprestimo.numeroParcelas || null,
+      data_inicio: emp.dataInicio,
+      data_vencimento: emp.dataVencimento,
+      forma_pagamento: emp.formaPagamento || 'vista',
+      numero_parcelas: emp.numeroParcelas || null,
       status: 'ativo'
     });
-
     if (error) toast.error('Erro ao adicionar');
     else toast.success('Adicionado!');
-  };
-
-  const handleEditEmprestimo = (emprestimo: any) => {
-    setEditingEmprestimo(emprestimo);
-    setIsEditModalOpen(true);
   };
 
   const handleSaveEdit = async (updated: any) => {
@@ -103,27 +101,16 @@ const ClientesPage = () => {
       data_inicio: updated.dataInicio,
       data_vencimento: updated.dataVencimento
     });
-    
     if (error) toast.error('Erro ao atualizar');
     else { toast.success('Atualizado!'); setIsEditModalOpen(false); }
   };
 
-  const handleMarcarPago = async (emprestimo: any) => {
-    const { error } = await marcarComoPago(emprestimo.id, emprestimo.valorTotal);
-    if (!error) toast.success('Quitado!');
-  };
-
-  const handleDeleteEmprestimo = async (id: string) => {
-    const { error } = await deleteEmprestimo(id);
-    if (!error) toast.success('Excluído!');
-  };
-
-  if (loading) return <div className="flex items-center justify-center min-h-[400px]">Carregando...</div>;
+  if (loading) return <div className="flex items-center justify-center min-h-[400px]">Carregando banca...</div>;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-20">
       <header>
-        <h1 className="text-3xl font-bold">Clientes</h1>
+        <h1 className="text-3xl font-bold italic tracking-tighter">Clientes</h1>
         <p className="text-muted-foreground">Gerencie sua base de tomadores.</p>
       </header>
 
@@ -133,52 +120,47 @@ const ClientesPage = () => {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Pesquisar cliente..."
-          className="pl-10 rounded-xl"
+          className="pl-10 rounded-xl bg-card/50 backdrop-blur-sm"
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {clientesFiltrados.map((cliente) => {
-          const totalDevendo = getTotalDevendo(cliente.id);
-          const emprestimosAtivos = getEmprestimosAtivos(cliente.id);
-
-          return (
-            <Card 
-              key={cliente.id} 
-              className="apple-card hover:scale-[1.02] cursor-pointer transition-all"
-              onClick={() => handleClienteClick(cliente)}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-lg"><User className="w-6 h-6 text-primary" /></div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold">{cliente.nome}</h3>
-                    <div className="flex items-center gap-4 mt-1">
-                      <span className={`text-sm font-medium ${totalDevendo > 0 ? 'text-destructive' : 'text-success'}`}>
-                        {totalDevendo > 0 ? formatCurrency(totalDevendo) : '✓ Sem dívidas'}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{emprestimosAtivos} ativo(s)</span>
-                    </div>
+        {clientesProcessados.map((cliente) => (
+          <Card 
+            key={cliente.id} 
+            className="hover:scale-[1.01] cursor-pointer transition-all border-white/10 bg-card/40 backdrop-blur-md"
+            onClick={() => handleClienteClick(cliente)}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary/10 rounded-lg"><User className="w-6 h-6 text-primary" /></div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold">{cliente.nome}</h3>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className={`text-sm font-bold ${cliente.totalDevendo > 0 ? 'text-destructive' : 'text-emerald-500'}`}>
+                      {cliente.totalDevendo > 0 ? formatCurrency(cliente.totalDevendo) : '✓ Quitado'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{cliente.emprestimosAtivos} ativo(s)</span>
                   </div>
-                  <ChevronRight className="text-muted-foreground" />
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                <ChevronRight className="text-muted-foreground opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* 🛡️ MODAIS COM TODAS AS FUNÇÕES INTEGRADAS */}
       <ClienteHistoricoModal
         cliente={selectedCliente}
-        emprestimos={getEmprestimosForModal()}
+        emprestimos={emprestimosParaModal}
         isOpen={isHistoricoOpen}
         onClose={() => { setIsHistoricoOpen(false); setSelectedCliente(null); }}
         onAddEmprestimo={handleAddEmprestimo}
-        onEditEmprestimo={handleEditEmprestimo}
-        onMarcarPago={handleMarcarPago}
+        onEditEmprestimo={(emp) => { setEditingEmprestimo(emp); setIsEditModalOpen(true); }}
+        // ✅ Correção do erro de assinatura: passa id e valor separadamente
+        onMarcarPago={(emp: any) => marcarComoPago(emp.id, emp.valorTotal)}
         onRenovarJuros={renovarEmprestimo}
-        onDeleteEmprestimo={handleDeleteEmprestimo} // 🛡️ CONECTADO AO BOTÃO DE LIXEIRA
+        onDeleteEmprestimo={deleteEmprestimo}
       />
 
       <EditEmprestimoModal
@@ -186,7 +168,7 @@ const ClientesPage = () => {
         isOpen={isEditModalOpen}
         onClose={() => { setIsEditModalOpen(false); setEditingEmprestimo(null); }}
         onSave={handleSaveEdit}
-        onDelete={handleDeleteEmprestimo}
+        onDelete={deleteEmprestimo}
       />
     </div>
   );
