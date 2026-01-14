@@ -1,22 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Cliente, Emprestimo } from '@/types';
-import { formatCurrency, formatDate, generateId, safeNumber } from '@/utils/calculations';
-import { Plus, Edit2, CheckCircle, DollarSign, Calendar, RefreshCw, X, Trash2 } from 'lucide-react'; // 🛡️ Adicionado Trash2
+import { formatCurrency, formatDate, safeNumber } from '@/utils/calculations';
+import { 
+  Plus, Edit2, CheckCircle, DollarSign, 
+  Calendar, RefreshCw, X, Trash2 
+} from 'lucide-react'; 
+import { toast } from 'sonner';
 
 interface ClienteHistoricoModalProps {
   cliente: Cliente | null;
   emprestimos: Emprestimo[];
   isOpen: boolean;
   onClose: () => void;
-  onAddEmprestimo: (emprestimo: Emprestimo) => void;
-  onEditEmprestimo: (emprestimo: Emprestimo) => void;
-  onMarcarPago: (emprestimo: Emprestimo) => void;
+  onAddEmprestimo: (emprestimo: any) => void;
+  onEditEmprestimo: (emprestimo: any) => void;
+  onMarcarPago: (emprestimo: any) => void;
   onRenovarJuros: (id: string) => void;
-  onDeleteEmprestimo: (id: string) => void; // 🛡️ Nova Prop
+  onDeleteEmprestimo: (id: string) => void;
 }
 
 const ClienteHistoricoModal = ({
@@ -28,7 +32,7 @@ const ClienteHistoricoModal = ({
   onEditEmprestimo,
   onMarcarPago,
   onRenovarJuros,
-  onDeleteEmprestimo, // 🛡️ Recebendo a Prop
+  onDeleteEmprestimo,
 }: ClienteHistoricoModalProps) => {
   const [showForm, setShowForm] = useState(false);
   const [valor, setValor] = useState('');
@@ -45,158 +49,155 @@ const ClienteHistoricoModal = ({
     }
   }, [dataInicio]);
 
-  const clienteEmprestimos = (emprestimos || [])
-    .filter(e => e.clienteId === cliente?.id)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Filtra e ordena empréstimos do cliente
+  const clienteEmprestimos = useMemo(() => {
+    return (emprestimos || [])
+      .filter(e => e.clienteId === cliente?.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [emprestimos, cliente]);
 
-  const totalDevendo = clienteEmprestimos
-    .filter(e => e.status === 'ativo' || e.status === 'vencido')
-    .reduce((acc, e) => acc + (safeNumber(e.valorTotal) - safeNumber(e.valorPago)), 0);
+  // 🧮 CÁLCULOS TÉCNICOS (Corrigindo Erros de Overlap do TS)
+  
+  // 1. Saldo Devedor: Tudo que NÃO está pago/quitado
+  const totalDevendo = useMemo(() => {
+    return clienteEmprestimos
+      .filter(e => String(e.status) !== 'pago' && String(e.status) !== 'quitado')
+      .reduce((acc, e) => acc + (safeNumber(e.valorTotal) - safeNumber(e.valorPago)), 0);
+  }, [clienteEmprestimos]);
 
-  const totalPago = clienteEmprestimos
-    .filter(e => e.status === 'pago')
-    .reduce((acc, e) => acc + safeNumber(e.valorTotal), 0);
-
-  const lucroTotal = clienteEmprestimos
-    .filter(e => e.status === 'pago')
-    .reduce((acc, e) => acc + safeNumber(e.juros), 0);
+  // 2. Lucro Total: Soma de todos os juros recebidos (valorPago)
+  const lucroTotal = useMemo(() => {
+    return clienteEmprestimos.reduce((acc, e) => acc + safeNumber(e.valorPago), 0);
+  }, [clienteEmprestimos]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!cliente) return;
     const valorNum = safeNumber(valor);
     const jurosNum = safeNumber(juros);
-    if (valorNum <= 0) return;
+    if (valorNum <= 0) return toast.error("Valor inválido");
 
     onAddEmprestimo({
-      id: generateId(),
       clienteId: cliente.id,
       valor: valorNum,
-      dataInicio,
-      dataVencimento,
       juros: jurosNum,
-      formaPagamento: 'vista',
-      status: 'ativo',
       valorTotal: valorNum + jurosNum,
       valorPago: 0,
-      createdAt: new Date().toISOString(),
+      dataInicio,
+      dataVencimento,
+      status: 'ativo',
+      formaPagamento: 'vista'
     });
 
     setShowForm(false);
     setValor(''); setJuros('');
-    setDataInicio(new Date().toISOString().split('T')[0]);
   };
 
   if (!cliente) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto apple-card border-none bg-card/95 backdrop-blur-2xl">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto border-none bg-card/95 backdrop-blur-2xl shadow-2xl rounded-[2rem]">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span className="text-2xl font-black tracking-tight">{cliente.nome}</span>
+            <div>
+              <span className="text-2xl font-black tracking-tighter">{cliente.nome}</span>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Controle de Banca</p>
+            </div>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 pt-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 bg-destructive/10 rounded-2xl border border-destructive/20 text-center">
-              <p className="text-[10px] font-bold text-destructive uppercase">Deve</p>
-              <p className="text-lg font-black">{formatCurrency(totalDevendo)}</p>
+          {/* Resumo Financeiro */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 bg-destructive/10 rounded-3xl border border-destructive/10 text-center">
+              <p className="text-[9px] font-black text-destructive uppercase mb-1">Saldo Devedor</p>
+              <p className="text-xl font-black">{formatCurrency(totalDevendo)}</p>
             </div>
-            <div className="p-3 bg-success/10 rounded-2xl border border-success/20 text-center">
-              <p className="text-[10px] font-bold text-success uppercase">Pago</p>
-              <p className="text-lg font-black">{formatCurrency(totalPago)}</p>
-            </div>
-            <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20 text-center">
-              <p className="text-[10px] font-bold text-primary uppercase">Seu Lucro</p>
-              <p className="text-lg font-black">{formatCurrency(lucroTotal)}</p>
+            <div className="p-4 bg-emerald-500/10 rounded-3xl border border-emerald-500/10 text-center">
+              <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Lucro no Bolso</p>
+              <p className="text-xl font-black">{formatCurrency(lucroTotal)}</p>
             </div>
           </div>
 
           {!showForm && (
-            <Button onClick={() => setShowForm(true)} className="w-full apple-button h-12 font-bold">
+            <Button onClick={() => setShowForm(true)} className="w-full apple-button h-14 font-black uppercase text-xs">
               <Plus className="w-5 h-5 mr-2" /> Novo Empréstimo
             </Button>
           )}
 
           {showForm && (
-            <form onSubmit={handleSubmit} className="space-y-4 p-5 border rounded-3xl bg-secondary/30 animate-in fade-in zoom-in-95">
-              <div className="flex justify-between items-center mb-2 text-muted-foreground uppercase font-black text-[10px]">
-                <span>Novo Contrato</span>
-                <X className="w-5 h-5 cursor-pointer hover:text-foreground" onClick={() => setShowForm(false)} />
+            <form onSubmit={handleSubmit} className="space-y-4 p-5 border border-white/5 rounded-[2rem] bg-secondary/20 animate-in fade-in zoom-in-95">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-black uppercase text-primary tracking-widest">Abrir Contrato</span>
+                <X className="w-5 h-5 cursor-pointer text-muted-foreground" onClick={() => setShowForm(false)} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase ml-1">Valor (R$)</Label>
-                  <Input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} className="rounded-2xl h-11 bg-background/50 border-border/40 font-bold" autoFocus />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Capital</Label>
+                  <Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} className="rounded-2xl h-12 bg-background border-none font-bold" autoFocus />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase ml-1">Juros (R$)</Label>
-                  <Input type="number" step="0.01" value={juros} onChange={(e) => setJuros(e.target.value)} className="rounded-2xl h-11 bg-background/50 border-border/40 font-bold text-primary" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase ml-1">Data Início</Label>
-                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="rounded-2xl h-11 bg-background/50 border-border/40" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase ml-1">Vencimento</Label>
-                  <Input type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} className="rounded-2xl h-11 bg-background/50 border-border/40" />
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Juros</Label>
+                  <Input type="number" value={juros} onChange={(e) => setJuros(e.target.value)} className="rounded-2xl h-12 bg-background border-none font-bold text-primary" />
                 </div>
               </div>
-              <div className="flex gap-2 pt-2">
-                <Button type="submit" className="flex-1 apple-button h-11 font-bold">Confirmar</Button>
-                <Button type="button" variant="outline" className="rounded-2xl h-11 font-bold" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="rounded-2xl h-12 bg-background border-none text-xs font-bold" />
+                <Input type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} className="rounded-2xl h-12 bg-background border-none text-xs font-bold text-primary" />
               </div>
+              <Button type="submit" className="w-full apple-button h-12 font-black uppercase">Criar</Button>
             </form>
           )}
 
           <div className="space-y-3 pb-4">
-            <h4 className="font-bold text-xs text-muted-foreground uppercase tracking-widest px-2">Histórico</h4>
+            <h4 className="font-black text-[10px] text-muted-foreground uppercase tracking-widest px-2">Histórico</h4>
             {clienteEmprestimos.map((emp) => {
-              const isVenc = new Date(emp.dataVencimento) < new Date() && emp.status === 'ativo';
+              // ✅ Correção TS: Forçando o tipo string para evitar erro de overlap
+              const statusStr = String(emp.status);
+              const isPago = statusStr === 'pago' || statusStr === 'quitado';
+              const isVencido = new Date(emp.dataVencimento) < new Date() && !isPago;
+              const saldoCard = safeNumber(emp.valorTotal) - safeNumber(emp.valorPago);
+
               return (
-                <div key={emp.id} className={`p-4 rounded-3xl border transition-all ${emp.status === 'pago' ? 'bg-success/5 border-success/10 opacity-70' : isVenc ? 'bg-destructive/5 border-destructive/20' : 'bg-card/50 border-border/40 shadow-sm'}`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${emp.status === 'pago' ? 'bg-success/20 text-success' : isVenc ? 'bg-destructive/20 text-destructive' : 'bg-muted text-muted-foreground'}`}>
-                      {emp.status === 'pago' ? 'Liquidado' : isVenc ? 'Vencido' : 'Ativo'}
+                <div key={emp.id} className={`p-4 rounded-[2rem] border transition-all ${isPago ? 'bg-secondary/10 border-white/5 opacity-60' : isVencido ? 'bg-destructive/5 border-destructive/20' : 'bg-secondary/20 border-white/5'}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${isPago ? 'bg-emerald-500/20 text-emerald-500' : isVencido ? 'bg-destructive/20 text-destructive' : 'bg-primary/20 text-primary'}`}>
+                      {isPago ? 'Liquidado' : statusStr}
                     </span>
-                    <div className="flex gap-2">
-                      {emp.status !== 'pago' && (
+                    <div className="flex gap-1.5">
+                      {!isPago && (
                         <>
-                          <Button size="sm" variant="ghost" onClick={() => onRenovarJuros(emp.id)} className="h-8 w-8 p-0 text-primary hover:bg-primary/10 rounded-xl" title="Renovar Juros">
+                          <Button size="sm" variant="ghost" onClick={() => onRenovarJuros(emp.id)} className="h-8 w-8 p-0 text-primary hover:bg-primary/10 rounded-xl">
                             <RefreshCw className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => onEditEmprestimo(emp)} className="h-8 w-8 p-0 rounded-xl">
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => onMarcarPago(emp)} className="h-8 w-8 p-0 text-success hover:bg-success/10 rounded-xl">
+                          <Button size="sm" variant="ghost" onClick={() => onMarcarPago(emp)} className="h-8 w-8 p-0 text-emerald-500 hover:bg-emerald-500/10 rounded-xl">
                             <CheckCircle className="w-4 h-4" />
                           </Button>
                         </>
                       )}
-                      {/* 🛡️ BOTÃO EXCLUIR ADICIONADO AQUI */}
+                      <Button size="sm" variant="ghost" onClick={() => onEditEmprestimo(emp)} className="h-8 w-8 p-0 text-muted-foreground rounded-xl">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Button>
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        onClick={() => { if(confirm('Excluir este empréstimo permanentemente?')) onDeleteEmprestimo(emp.id); }} 
-                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-xl"
-                        title="Excluir"
+                        onClick={() => { if(confirm('Excluir?')) onDeleteEmprestimo(emp.id); }} 
+                        className="h-8 w-8 p-0 text-destructive/40 hover:text-destructive rounded-xl"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-bold">
-                    <div className="flex items-center gap-1.5 text-foreground">
-                      <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>Total: <strong className="text-base font-black tracking-tighter">{formatCurrency(emp.valorTotal)}</strong></span>
+
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Saldo Atual</p>
+                      <p className="text-xl font-black tracking-tighter">{formatCurrency(saldoCard)}</p>
                     </div>
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className={isVenc ? 'text-destructive font-black' : 'text-muted-foreground'}>{formatDate(emp.dataVencimento)}</span>
+                    <div className="text-right">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">Vencimento</p>
+                      <p className={`text-[11px] font-black ${isVencido ? 'text-destructive' : 'text-foreground'}`}>{formatDate(emp.dataVencimento)}</p>
                     </div>
                   </div>
                 </div>
