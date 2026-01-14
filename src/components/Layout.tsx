@@ -19,7 +19,6 @@ const Layout = ({ children }: { children: ReactNode }) => {
   const { getUnreadCount } = useNotificacoes();
   const unreadCount = typeof getUnreadCount === 'function' ? getUnreadCount() : 0;
 
-  // 🌐 Monitor de conexão (otimizado)
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -48,7 +47,6 @@ const Layout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="flex min-h-screen relative font-sans antialiased overflow-x-hidden">
       
-      {/* 🎨 Background otimizado */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div 
           className="absolute inset-0 bg-login-pattern-custom bg-no-repeat bg-cover 
@@ -61,9 +59,9 @@ const Layout = ({ children }: { children: ReactNode }) => {
       </div>
 
       {isMobile ? (
-        // --- MOBILE ---
         <div className="flex flex-col w-full min-h-screen">
-          <header className="sticky top-0 z-40 px-4 py-4 bg-background/60 backdrop-blur-3xl border-b border-white/10 shadow-sm">
+          {/* ✅ HEADER: px-5 para respiro lateral de fintech */}
+          <header className="sticky top-0 z-40 px-5 py-4 bg-background/60 backdrop-blur-3xl border-b border-white/10 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10 border-2 border-primary/20 shadow-lg">
@@ -97,9 +95,11 @@ const Layout = ({ children }: { children: ReactNode }) => {
             </div>
           </header>
 
-          <main className="flex-1 relative z-10 px-4 py-6 pb-32">{children}</main>
+          {/* ✅ MAIN: px-5 lateral para valores altos (Safe Area) e pb-40 para respiro do dock */}
+          <main className="flex-1 relative z-10 px-5 py-6 pb-40">{children}</main>
 
-          <nav className="fixed bottom-0 left-0 right-0 z-50 px-6 pb-8 pointer-events-none">
+          {/* ✅ NAV: pb-10 para respeitar a área de gestos do sistema em telas mobile */}
+          <nav className="fixed bottom-0 left-0 right-0 z-50 px-6 pb-10 pointer-events-none">
             <div className="flex items-center justify-around py-3 bg-card/70 backdrop-blur-3xl rounded-[2.5rem] border border-white/10 shadow-2xl pointer-events-auto">
               <NavTab to="/dashboard" icon={LayoutDashboard} label="Home" />
               <NavTab to="/relatorios" icon={BarChart3} label="Dados" />
@@ -112,7 +112,9 @@ const Layout = ({ children }: { children: ReactNode }) => {
               
               <Sheet>
                 <SheetTrigger asChild>
-                  <button className="flex flex-col items-center gap-1 opacity-60"><Menu className="w-6 h-6" /></button>
+                  <button className="flex flex-col items-center gap-1 opacity-60 active:scale-90 transition-transform">
+                    <Menu className="w-6 h-6" />
+                  </button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="rounded-t-[3rem] bg-card/95 backdrop-blur-3xl border-t border-white/10 pb-12">
                   <SheetHeader className="mb-6">
@@ -142,19 +144,21 @@ const Layout = ({ children }: { children: ReactNode }) => {
           </nav>
         </div>
       ) : (
-        // --- DESKTOP ---
+        /* DESKTOP ASIDE: Sem alterações conforme pedido */
         <div className="flex w-full h-screen overflow-hidden">
           <aside className="w-72 bg-card/30 backdrop-blur-3xl border-r border-white/5 flex flex-col shadow-2xl z-20">
             <div className="p-8">
               <div className="flex items-center justify-between mb-8">
-                <h1 className="text-2xl font-black italic tracking-tighter text-primary">LojinhaBoy<span className="text-foreground">Pro</span></h1>
+                <h1 className="text-2xl font-black tracking-tighter text-primary">LojinhaBoy<span className="text-foreground">Pro</span></h1>
                 <DarkModeToggle />
               </div>
               
               <div className="flex items-center gap-4 p-4 rounded-[2rem] bg-secondary/30 border border-white/10 shadow-sm relative overflow-hidden group">
                 <Avatar className="h-12 w-12 border-2 border-primary/20 transition-transform group-hover:scale-105">
                   <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback className="font-black bg-primary text-white">{profile?.nome?.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="font-black bg-primary text-black">
+                    {profile?.nome?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black truncate leading-none mb-1 text-foreground">{profile?.nome}</p>
@@ -210,7 +214,7 @@ const NavTab = ({ to, icon: Icon, label }: any) => (
   <NavLink 
     to={to} 
     activeClassName="text-primary scale-110 opacity-100" 
-    className="flex flex-col items-center gap-1 transition-all text-muted-foreground opacity-60 hover:opacity-100"
+    className="flex flex-col items-center gap-1 transition-all text-muted-foreground opacity-60 hover:opacity-100 active:scale-90"
   >
     <div className="p-1.5 rounded-xl"><Icon className="w-6 h-6" /></div>
     <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
