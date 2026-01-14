@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format, startOfDay, isBefore } from 'date-fns';
+import { format, startOfDay, isBefore, parseISO, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   TrendingUp, AlertCircle, Clock, 
-  Users, PieChart, Info, ShieldCheck, Banknote
+  Users, Info, ShieldCheck, Banknote, 
+  ArrowRight
 } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
@@ -13,13 +14,20 @@ import { useClientes } from '@/hooks/useClientes';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { formatCurrency, safeNumber } from '@/utils/calculations';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useTheme } from 'next-themes';
+
+import sharkDark from '@/components/icons/shark-dark.png';
+import sharkLight from '@/components/icons/shark-light.png';
 
 const Dashboard = () => {
+  const { theme } = useTheme();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { emprestimos, loading: loadingEmp } = useEmprestimos();
   const { clientes, loading: loadingCli } = useClientes();
+
+  const sharkImg = theme === 'dark' ? sharkLight : sharkDark;
 
   const clientesMap = useMemo(() => {
     const map = new Map();
@@ -27,155 +35,152 @@ const Dashboard = () => {
     return map;
   }, [clientes]);
 
-  // 🛡️ LÓGICA FINANCEIRA CORRIGIDA
-  const stats = useMemo(() => {
-    const initial = {
-      capitalNaRua: 0,     // Dinheiro original que ainda está com os clientes
-      lucroRealizado: 0,   // DINHEIRO NO BOLSO: Juros quitados + Renovação recebida
-      lucroProjetado: 0,   // Juros que ainda vão vencer
-      valorEmAtraso: 0,    // Saldo total (capital+juro) que já passou da data
-      ativosCount: 0,
-    };
+  const resumoHoje = useMemo(() => {
+    const hoje = new Date();
+    const paraReceberHoje = (emprestimos || []).filter(emp => {
+      const status = String(emp.status).toLowerCase();
+      const isAberto = status !== 'pago' && status !== 'quitado';
+      const venceHoje = emp.data_vencimento && isSameDay(parseISO(emp.data_vencimento), hoje);
+      return isAberto && venceHoje;
+    });
+    const valorTotal = paraReceberHoje.reduce((acc, emp) => 
+      acc + (safeNumber(emp.valor_total) - safeNumber(emp.valor_pago)), 0
+    );
+    return { valor: valorTotal, qtd: paraReceberHoje.length };
+  }, [emprestimos]);
 
+  const stats = useMemo(() => {
+    const initial = { capitalNaRua: 0, lucroRealizado: 0, lucroProjetado: 0, valorEmAtraso: 0, ativosCount: 0 };
     if (!emprestimos?.length) return initial;
     const hoje = startOfDay(new Date());
 
     return emprestimos.reduce((acc, emp) => {
       const capOriginal = safeNumber(emp.valor);
-      const juroContrato = safeNumber(emp.juros);
       const jaPago = safeNumber(emp.valor_pago);
       const totalContrato = safeNumber(emp.valor_total);
-      
-      const saldoDevedor = totalContrato - jaPago;
-      const dataVenc = emp.data_vencimento ? startOfDay(new Date(emp.data_vencimento)) : null;
-      const atrasado = emp.status !== 'pago' && dataVenc && isBefore(dataVenc, hoje);
-
-      if (emp.status === 'pago') {
-        // 💰 Se quitou: O juro é o seu lucro realizado
-        acc.lucroRealizado += juroContrato;
-      } else {
-        // 📈 Contratos em andamento
-        acc.capitalNaRua += capOriginal; 
-        acc.lucroProjetado += juroContrato;
+      const status = String(emp.status).toLowerCase();
+      const isAberto = status !== 'pago' && status !== 'quitado';
+      acc.lucroRealizado += jaPago; 
+      if (isAberto) {
+        acc.capitalNaRua += capOriginal;
+        acc.lucroProjetado += safeNumber(emp.juros);
         acc.ativosCount++;
-        
-        // 💸 RENOVAÇÕES: Se ele pagou juros mas o contrato continua aberto
-        if (jaPago > 0) {
-          acc.lucroRealizado += jaPago; 
-        }
-
-        if (atrasado) {
-          acc.valorEmAtraso += saldoDevedor;
+        const dataVenc = emp.data_vencimento ? startOfDay(parseISO(emp.data_vencimento)) : null;
+        if (dataVenc && isBefore(dataVenc, hoje)) {
+          acc.valorEmAtraso += (totalContrato - jaPago);
         }
       }
-
       return acc;
     }, initial);
   }, [emprestimos]);
 
   const proximosRecebimentos = useMemo(() => {
     return (emprestimos || [])
-      .filter(e => (e.status === 'ativo' || e.status === 'vencido') && e.data_vencimento)
+      .filter(e => (String(e.status).toLowerCase() !== 'pago' && String(e.status).toLowerCase() !== 'quitado') && e.data_vencimento)
       .sort((a, b) => new Date(a.data_vencimento!).getTime() - new Date(b.data_vencimento!).getTime())
+      .slice(0, 5);
+  }, [emprestimos]);
+
+  const entradasRecentes = useMemo(() => {
+    return (emprestimos || [])
+      .filter(e => safeNumber(e.valor_pago) > 0)
+      .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
       .slice(0, 5);
   }, [emprestimos]);
 
   if (loadingEmp || loadingCli) return <LoadingState />;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-24 max-w-5xl mx-auto px-2">
+    // ✅ Safe Area: px-5 no mobile, md:px-2 no desktop
+    <div className="space-y-6 animate-in fade-in duration-500 pb-24 max-w-5xl mx-auto px-5 md:px-2 relative min-h-screen">
       
-      <header className="flex flex-col gap-1">
-        <h1 className="text-3xl font-black tracking-tight">Painel da Banca</h1>
-        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest">
-          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-        </p>
-      </header>
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className={`absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[600px] h-[600px] rounded-full blur-[120px] ${theme === 'dark' ? 'bg-primary/10' : 'bg-primary/5'}`} />
+      </div>
 
-      {/* CARD PRINCIPAL: PATRIMÔNIO TOTAL */}
-      <div className="relative overflow-hidden bg-card border border-border/40 rounded-[2.5rem] p-8 shadow-2xl">
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Patrimônio Sob Gestão</span>
-            <HelpInfo text="Total que você possui hoje: Capital na rua + Juros já recebidos." />
+      <div className="relative z-10 space-y-6">
+        <header className="flex flex-col gap-1 pt-6">
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary text-left">lojinha-boy pro</p>
+          <h1 className="text-4xl font-black tracking-tighter text-foreground leading-none uppercase text-left">
+            SHARK {profile?.nome}
+          </h1>
+          <p className="text-muted-foreground text-[10px] font-bold mt-1 uppercase tracking-widest text-left">
+            {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          </p>
+        </header>
+
+        {/* 🦈 SHARK RADAR */}
+        {resumoHoje.qtd > 0 && (
+          <div className="animate-in slide-in-from-top-4 duration-700">
+            <div className="relative group overflow-hidden bg-primary/10 border border-primary/20 backdrop-blur-xl p-5 rounded-[2.2rem] flex items-center justify-between shadow-xl">
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center text-black shadow-lg">
+                  <img src={sharkImg} alt="Shark" className="w-9 h-9 object-contain" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-foreground leading-none">Radar do Tubarão</h4>
+                  <p className="text-[11px] text-muted-foreground mt-1 font-medium">
+                    Detectamos <span className="text-primary font-black">{formatCurrency(resumoHoje.valor)}</span> hoje.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => navigate('/cobranca')} className="h-10 px-4 bg-primary text-black rounded-xl text-[10px] font-black uppercase tracking-widest">
+                Atacar
+              </button>
+            </div>
           </div>
-          
-          <h2 className="text-5xl font-black tracking-tighter">
-            {formatCurrency(stats.capitalNaRua + stats.lucroRealizado)}
-          </h2>
+        )}
 
-          <div className="grid grid-cols-2 gap-8 mt-10 pt-8 border-t border-border/40">
-            <section>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-[10px] font-black text-primary uppercase tracking-widest">Lucro no Bolso</p>
-                <HelpInfo text="Dinheiro real que entrou: Juros de contratos pagos + Juros de renovações recebidas." />
-              </div>
-              <p className="text-3xl font-black text-primary leading-none">{formatCurrency(stats.lucroRealizado)}</p>
-            </section>
-            <section>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Capital Emprestado</p>
-                <HelpInfo text="Dinheiro puro que está na mão dos clientes no momento." />
-              </div>
-              <p className="text-3xl font-black leading-none">{formatCurrency(stats.capitalNaRua)}</p>
-            </section>
+        {/* CARD PRINCIPAL: CORREÇÃO DE MOBILE OVERLAP */}
+        <div className="relative overflow-hidden bg-card/40 backdrop-blur-md border border-border/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl">
+          <div className="relative z-10">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Patrimônio Sob Gestão</span>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-foreground leading-tight">
+              {formatCurrency(stats.capitalNaRua + stats.lucroRealizado)}
+            </h2>
+
+            {/* ✅ AJUSTE RESPONSIVO: flex-col no mobile (para não encavalar) e grid no desktop */}
+            <div className="flex flex-col sm:grid sm:grid-cols-2 gap-6 sm:gap-12 mt-8 pt-8 border-t border-border/10">
+              <section className="min-w-0">
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Lucro no Bolso</p>
+                <p className="text-2xl md:text-3xl font-black text-emerald-500 leading-none truncate">
+                  {formatCurrency(stats.lucroRealizado)}
+                </p>
+              </section>
+              <section className="min-w-0">
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Capital na Rua</p>
+                <p className="text-2xl md:text-3xl font-black text-foreground leading-none opacity-80 truncate">
+                  {formatCurrency(stats.capitalNaRua)}
+                </p>
+              </section>
+            </div>
           </div>
         </div>
-        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-80 h-80 bg-primary/10 rounded-full blur-[100px]" />
-      </div>
 
-      {/* INDICADORES DE PERFORMANCE */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatSmall 
-          label="Em Atraso" 
-          value={formatCurrency(stats.valorEmAtraso)} 
-          icon={AlertCircle} 
-          color={stats.valorEmAtraso > 0 ? "text-destructive" : "text-emerald-500"}
-          help="Saldo devedor total que já passou da data de vencimento."
-        />
-        <StatSmall 
-          label="Juros Futuros" 
-          value={formatCurrency(stats.lucroProjetado)} 
-          icon={TrendingUp} 
-          color="text-primary" 
-          help="Expectativa de lucro dos contratos que ainda vão vencer."
-        />
-        <StatSmall label="Contratos" value={stats.ativosCount} icon={ShieldCheck} color="text-blue-500" help="Total de empréstimos rodando agora." />
-        <StatSmall label="Clientes" value={clientes?.length || 0} icon={Users} color="text-slate-400" help="Total de clientes cadastrados." />
-      </div>
+        {/* INDICADORES (Grid de Cards Pequenos) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatSmall label="Atrasados" value={formatCurrency(stats.valorEmAtraso)} icon={AlertCircle} color={stats.valorEmAtraso > 0 ? "text-destructive" : "text-emerald-500"} />
+          <StatSmall label="Projetado" value={formatCurrency(stats.lucroProjetado)} icon={TrendingUp} color="text-primary" />
+          <StatSmall label="Em Aberto" value={stats.ativosCount} icon={ShieldCheck} color="text-blue-500" />
+          <StatSmall label="Carteira" value={clientes?.length || 0} icon={Users} color="text-slate-400" />
+        </div>
 
-      {/* LISTAGEM DE FLUXO */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-4">
-          <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 px-2">
-            <Clock className="w-4 h-4 text-amber-500" /> Próximos Vencimentos
-          </h3>
-          <div className="space-y-3">
+        {/* LISTAGENS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 px-1 text-amber-500">
+              <Clock className="w-4 h-4" /> Vencimentos
+            </h3>
             {proximosRecebimentos.map(emp => (
-              <TransactionItem 
-                key={emp.id}
-                name={clientesMap.get(emp.cliente_id) || 'Cliente'}
-                date={emp.data_vencimento ? format(new Date(emp.data_vencimento), "dd/MM", { locale: ptBR }) : '--'}
-                amount={formatCurrency(safeNumber(emp.valor_total) - safeNumber(emp.valor_pago))}
-                isLate={emp.data_vencimento ? isBefore(startOfDay(new Date(emp.data_vencimento)), startOfDay(new Date())) : false}
-              />
+              <TransactionItem key={emp.id} name={clientesMap.get(emp.cliente_id) || 'Cliente'} date={emp.data_vencimento ? format(parseISO(emp.data_vencimento), "dd/MM") : '--'} amount={formatCurrency(safeNumber(emp.valor_total) - safeNumber(emp.valor_pago))} isLate={emp.data_vencimento ? isBefore(startOfDay(parseISO(emp.data_vencimento)), startOfDay(new Date())) : false} />
             ))}
           </div>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 px-2 text-emerald-500">
-            <Banknote className="w-4 h-4" /> Entradas Recentes
-          </h3>
-          <div className="space-y-3">
-            {emprestimos?.filter(e => safeNumber(e.valor_pago) > 0).slice(0, 5).map(emp => (
-              <TransactionItem 
-                key={emp.id}
-                name={clientesMap.get(emp.cliente_id) || 'Cliente'}
-                date={emp.status === 'pago' ? "Contrato Quitado" : "Renovação Recebida"}
-                amount={formatCurrency(emp.status === 'pago' ? safeNumber(emp.juros) : safeNumber(emp.valor_pago))}
-                variant="success"
-              />
+          <div className="space-y-4">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 px-1 text-emerald-500">
+              <Banknote className="w-4 h-4" /> Entradas (Juros)
+            </h3>
+            {entradasRecentes.map(emp => (
+              <TransactionItem key={emp.id} name={clientesMap.get(emp.cliente_id) || 'Cliente'} date={String(emp.status) === 'pago' ? "Quitado" : "Renovação"} amount={formatCurrency(safeNumber(emp.valor_pago))} variant="success" />
             ))}
           </div>
         </div>
@@ -184,57 +189,37 @@ const Dashboard = () => {
   );
 };
 
-// --- COMPONENTES AUXILIARES ---
-
-const StatSmall = ({ label, value, icon: Icon, color, help }: any) => (
-  <div className="bg-card p-5 rounded-[2rem] border border-border/40 shadow-sm hover:border-primary/20 transition-all">
-    <div className="flex items-center justify-between mb-3">
-      <div className={`p-2.5 rounded-xl bg-secondary/50 ${color}`}><Icon className="w-4 h-4" /></div>
-      <HelpInfo text={help} />
-    </div>
-    <p className="text-muted-foreground text-[9px] font-black uppercase tracking-tighter mb-0.5">{label}</p>
-    <p className="text-lg font-black truncate leading-none">{value}</p>
+// Componente de Estatística Pequeno
+const StatSmall = ({ label, value, icon: Icon, color }: any) => (
+  <div className="bg-card/40 backdrop-blur-md p-4 md:p-5 rounded-[2rem] border border-border/20 shadow-sm">
+    <div className={`p-2.5 rounded-xl bg-secondary/50 w-fit mb-3 ${color}`}><Icon className="w-4 h-4" /></div>
+    <p className="text-muted-foreground text-[8px] font-black uppercase tracking-widest mb-1">{label}</p>
+    <p className="text-lg md:text-xl font-black truncate leading-none text-foreground">{value}</p>
   </div>
 );
 
+// Item de Transação Listado
 const TransactionItem = ({ name, date, amount, isLate, variant = "default" }: any) => (
-  <div className="flex items-center justify-between p-4 bg-card rounded-2xl border border-border/40 hover:border-primary/20 transition-all">
-    <div className="flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-        variant === 'success' ? 'bg-emerald-500/10' : isLate ? 'bg-destructive/10' : 'bg-primary/5'
-      }`}>
+  <div className="flex items-center justify-between p-4 bg-card/40 backdrop-blur-md rounded-[1.5rem] border border-border/10">
+    <div className="flex items-center gap-3 min-w-0">
+      <div className={`w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center ${variant === 'success' ? 'bg-emerald-500/10' : isLate ? 'bg-destructive/10' : 'bg-primary/5'}`}>
         {variant === 'success' ? <Banknote className="w-4 h-4 text-emerald-600" /> : <Clock className="w-4 h-4 text-primary" />}
       </div>
-      <div>
-        <p className="text-sm font-bold leading-none">{name}</p>
-        <p className={`text-[10px] font-bold mt-1 ${isLate ? 'text-destructive' : 'text-muted-foreground uppercase'}`}>{isLate ? 'VENCIDO' : date}</p>
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-none text-foreground truncate">{name}</p>
+        <p className={`text-[9px] font-black mt-1 ${isLate ? 'text-destructive' : 'text-muted-foreground uppercase'}`}>{isLate ? 'VENCIDO' : date}</p>
       </div>
     </div>
-    <p className={`text-sm font-black ${variant === 'success' ? 'text-emerald-600' : 'text-foreground'}`}>
+    <p className={`text-sm font-black flex-shrink-0 ml-2 ${variant === 'success' ? 'text-emerald-500' : 'text-foreground'}`}>
       {variant === 'success' ? `+${amount}` : amount}
     </p>
   </div>
 );
 
-const HelpInfo = ({ text }: { text: string }) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button className="p-1 outline-none focus:ring-0">
-          <Info className="w-3.5 h-3.5 text-muted-foreground/30 hover:text-primary transition-colors" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="bg-popover/95 backdrop-blur-md border-border/40 p-3 rounded-xl text-[11px] font-medium max-w-[180px] shadow-2xl">
-        <p className="leading-relaxed">{text}</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-);
-
 const LoadingState = () => (
-  <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+  <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
     <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-    <p className="text-xs font-black uppercase tracking-[0.3em] animate-pulse text-muted-foreground">Calculando Banca...</p>
+    <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Sincronizando Banca...</p>
   </div>
 );
 
