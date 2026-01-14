@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
@@ -95,11 +93,12 @@ export type Database = {
           id: string
           juros: number
           numero_parcelas: number | null
-          status: string
+          status: "ativo" | "pago" | "vencido" | "pendente" | "quitado"
           user_id: string
           valor: number
           valor_pago: number
           valor_total: number
+          updated_at: string 
         }
         Insert: {
           cliente_id: string
@@ -115,6 +114,7 @@ export type Database = {
           valor: number
           valor_pago?: number
           valor_total: number
+          updated_at?: string 
         }
         Update: {
           cliente_id?: string
@@ -130,6 +130,7 @@ export type Database = {
           valor?: number
           valor_pago?: number
           valor_total?: number
+          updated_at?: string 
         }
         Relationships: [
           {
@@ -223,8 +224,12 @@ export type Database = {
     Views: {
       [_ in never]: never
     }
+    // ✅ CORREÇÃO: Função adicionada para sincronizar com o banco
     Functions: {
-      [_ in never]: never
+      gerar_alertas_diarios: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
