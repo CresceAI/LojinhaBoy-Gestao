@@ -1,30 +1,34 @@
-// src/utils/offlinePersistence.ts
-
-interface OfflineItem {
+// ✅ Tipagem semântica para diferenciar ações (Heurística #1 e #5)
+export interface OfflineAction<T = any> {
   id: string;
-  data: any;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  table: string;
+  data: T;
+  recordId?: string; // ID do registro no banco (obrigatório para UPDATE/DELETE)
   timestamp: string;
-  status: 'pending' | 'failed' | 'synced';
-  retryCount?: number;
+  status: 'pending' | 'failed';
+  retryCount: number;
   lastAttempt?: string;
+  error?: string;
 }
 
 const DB_NAME = 'LojinhaBoyOffline';
 const STORE_NAME = 'sync_queue';
+const DB_VERSION = 3; // Incremetado para suportar a nova estrutura de ações
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 /**
- * Abre IndexedDB com cache de conexão
+ * Abre IndexedDB com cache de conexão e tratamento de upgrade
  */
 const openDB = (): Promise<IDBDatabase> => {
   if (dbPromise) return dbPromise;
 
   dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
-      
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         store.createIndex('timestamp', 'timestamp', { unique: false });
@@ -33,24 +37,36 @@ const openDB = (): Promise<IDBDatabase> => {
     };
 
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
   });
 
   return dbPromise;
 };
 
 /**
- * ✅ Salva empréstimo offline
+ * ✅ MELHORIA: Salva qualquer ação na fila da banca (Semântico e Assertivo)
+ * Substitui o antigo saveOfflineEmprestimo para suportar Edição e Exclusão.
  */
-export const saveOfflineEmprestimo = async (dados: any): Promise<OfflineItem> => {
+export const saveOfflineAction = async (
+  action: 'CREATE' | 'UPDATE' | 'DELETE',
+  table: string,
+  dados: any,
+  recordId?: string
+): Promise<OfflineAction> => {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     
-    const item: OfflineItem = {
+    const item: OfflineAction = {
       id: crypto.randomUUID(),
+      action,
+      table,
       data: dados,
+      recordId,
       timestamp: new Date().toISOString(),
       status: 'pending',
       retryCount: 0,
@@ -59,21 +75,21 @@ export const saveOfflineEmprestimo = async (dados: any): Promise<OfflineItem> =>
     return new Promise((resolve, reject) => {
       const request = store.add(item);
       request.onsuccess = () => {
-        console.log('✅ Empréstimo salvo offline:', item.id);
+        console.log(`🦈 [Shark Engine] Ação ${action} enfileirada:`, item.id);
         resolve(item);
       };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('❌ Erro ao salvar offline:', error);
+    console.error('❌ [Shark Engine] Falha ao salvar ação offline:', error);
     throw error;
   }
 };
 
 /**
- * ✅ Lista fila por status
+ * ✅ Lista fila por status para o Motor de Sincronia
  */
-export const getOfflineQueue = async (status: 'pending' | 'failed' = 'pending'): Promise<OfflineItem[]> => {
+export const getOfflineQueue = async (status: 'pending' | 'failed' = 'pending'): Promise<OfflineAction[]> => {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -82,97 +98,54 @@ export const getOfflineQueue = async (status: 'pending' | 'failed' = 'pending'):
 
     return new Promise((resolve, reject) => {
       const request = index.getAll(status);
-      request.onsuccess = () => {
-        // ✅ TypeScript feliz: cast direto do result
-        const result = request.result as OfflineItem[];
-        resolve(result);
-      };
+      request.onsuccess = () => resolve(request.result as OfflineAction[]);
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('❌ Erro ao ler fila offline:', error);
     return [];
   }
 };
 
 /**
- * ✅ Remove item após sucesso
+ * ✅ Remove item após sucesso no servidor
  */
-export const removeOfflineItem = async (id: string): Promise<boolean> => {
+export const removeOfflineItem = async (id: string): Promise<void> => {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-
-    return new Promise((resolve, reject) => {
-      const request = store.delete(id);
-      request.onsuccess = () => {
-        console.log('✅ Item offline removido:', id);
-        resolve(true);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    tx.objectStore(STORE_NAME).delete(id);
   } catch (error) {
-    console.error('❌ Erro ao remover offline:', error);
-    throw error;
+    console.error('❌ Erro ao remover item offline:', error);
   }
 };
 
 /**
- * ✅ Marca como falha (retry)
+ * ✅ Marca como falha e registra o log técnico (Heurística #5 - Prevenção de Erros)
  */
-export const markAsFailed = async (id: string): Promise<OfflineItem> => {
+export const markAsFailed = async (id: string, errorMsg?: string): Promise<void> => {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
 
-    const item = await getOfflineItem(id);
-    if (!item) throw new Error('Item não encontrado');
-
-    const updatedItem: OfflineItem = {
-      ...item,
-      status: 'failed',
-      retryCount: (item.retryCount || 0) + 1,
-      lastAttempt: new Date().toISOString(),
+    const request = store.get(id);
+    request.onsuccess = () => {
+      const item = request.result as OfflineAction;
+      if (item) {
+        item.status = 'failed';
+        item.retryCount += 1;
+        item.lastAttempt = new Date().toISOString();
+        item.error = errorMsg || 'Falha na sincronia';
+        store.put(item);
+      }
     };
-
-    return new Promise((resolve, reject) => {
-      const request = store.put(updatedItem);
-      request.onsuccess = () => resolve(updatedItem);
-      request.onerror = () => reject(request.error);
-    });
   } catch (error) {
-    console.error('❌ Erro ao marcar como falha:', error);
-    throw error;
+    console.error('❌ Erro ao registrar falha:', error);
   }
 };
 
 /**
- * ✅ Busca item específico
- */
-const getOfflineItem = async (id: string): Promise<OfflineItem | null> => {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-
-    return new Promise((resolve, reject) => {
-      const request = store.get(id);
-      request.onsuccess = () => {
-        const result = request.result as OfflineItem | undefined;
-        resolve(result || null);
-      };
-      request.onerror = () => reject(request.error);
-    });
-  } catch (error) {
-    console.error('❌ Erro ao buscar item offline:', error);
-    return null;
-  }
-};
-
-/**
- * ✅ Limpa itens antigos (>7 dias)
+ * ✅ Limpeza automática (>7 dias) - Manutenção de Performance
  */
 export const cleanupOldQueue = async (): Promise<void> => {
   try {
@@ -180,33 +153,34 @@ export const cleanupOldQueue = async (): Promise<void> => {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const index = store.index('timestamp');
-
-    const itemsToDelete: string[] = [];
     const range = IDBKeyRange.upperBound(weekAgo);
-    
-    return new Promise((resolve, reject) => {
-      const cursorRequest = index.openCursor(range);
-      cursorRequest.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-        if (cursor) {
-          // ✅ Cursor.value é type-safe
-          itemsToDelete.push((cursor.value as OfflineItem).id);
-          cursor.continue();
-        } else {
-          // Deleta em batch
-          itemsToDelete.forEach(id => store.delete(id));
-          resolve();
-        }
-      };
-      cursorRequest.onerror = () => reject(cursorRequest.error);
-    });
+
+    store.index('timestamp').openCursor(range).onsuccess = (event) => {
+      const cursor = (event.target as any).result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      }
+    };
   } catch (error) {
-    console.error('❌ Erro na limpeza:', error);
+    console.warn('⚠️ [Shark Engine] Falha na auto-limpeza');
   }
 };
 
-// ✅ Auto-limpeza
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', cleanupOldQueue);
-}
+/**
+ * ✅ Heurística #1: Retorna contagem para feedback visual na UI
+ */
+export const getPendingCount = async (): Promise<number> => {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const index = tx.objectStore(STORE_NAME).index('status');
+    
+    return new Promise((resolve) => {
+      const request = index.count('pending');
+      request.onsuccess = () => resolve(request.result);
+    });
+  } catch {
+    return 0;
+  }
+};

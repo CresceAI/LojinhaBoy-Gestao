@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isSameDay, parseISO } from 'date-fns';
-import { BellRing, ArrowRight, Wallet } from 'lucide-react';
+import { BellRing, ArrowRight, Target, TrendingUp } from 'lucide-react';
 import { formatCurrency, safeNumber } from '@/utils/calculations';
+import { cn } from '@/lib/utils';
 
 interface AlertaProps {
   emprestimos: any[];
@@ -12,12 +13,12 @@ interface AlertaProps {
 const AlertaRecebiveis = ({ emprestimos, nomeUsuario }: AlertaProps) => {
   const navigate = useNavigate();
 
+  // --- LÓGICA DE NEGÓCIO INTACTA ---
   const resumoHoje = useMemo(() => {
     const hoje = new Date();
     
-    // Filtra localmente sem ir no banco de dados
-    const paraReceberHoje = emprestimos.filter(emp => {
-      const isAberto = String(emp.status) !== 'pago' && String(emp.status) !== 'quitado';
+    const paraReceberHoje = (emprestimos || []).filter(emp => {
+      const isAberto = String(emp.status).toLowerCase() !== 'pago' && String(emp.status).toLowerCase() !== 'quitado';
       const venceHoje = emp.data_vencimento && isSameDay(parseISO(emp.data_vencimento), hoje);
       return isAberto && venceHoje;
     });
@@ -35,30 +36,39 @@ const AlertaRecebiveis = ({ emprestimos, nomeUsuario }: AlertaProps) => {
   if (resumoHoje.qtd === 0) return null;
 
   return (
-    <div className="relative group px-2 animate-in slide-in-from-top-4 duration-500">
-      {/* Glow de fundo sutil */}
-      <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-emerald-500/20 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+    <div className="relative group px-2 mb-8 animate-in slide-in-from-top-6 duration-700">
+      {/* Liquid Glow de Fundo - Efeito de profundidade premium */}
+      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-primary/5 to-emerald-500/30 rounded-[2.5rem] blur-xl opacity-20 group-hover:opacity-40 transition duration-1000"></div>
       
-      <div className="relative bg-card/60 border border-primary/20 backdrop-blur-xl p-5 rounded-[2rem] flex items-center justify-between shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
-            <BellRing className="w-6 h-6 animate-tada" />
+      <div className="relative glass-card border-primary/20 bg-card/40 backdrop-blur-2xl p-6 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl overflow-hidden border-t-2 border-t-primary/30">
+        
+        {/* Elemento Decorativo Interno */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+
+        <div className="flex items-center gap-5 relative z-10">
+          {/* Ícone com Animação Tada do seu Config */}
+          <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-[inset_0_0_20px_rgba(var(--primary),0.1)] border border-primary/20 shrink-0">
+            <BellRing className="w-7 h-7 animate-tada" />
           </div>
-          <div>
-            <h4 className="text-sm font-black text-white leading-none">
-              Bom dia, {nomeUsuario.split(' ')[0]}!
-            </h4>
-            <p className="text-[11px] text-muted-foreground mt-1 font-medium">
-              Você tem <span className="text-primary font-bold">{formatCurrency(resumoHoje.valor)}</span> para receber de <span className="text-white font-bold">{resumoHoje.qtd}</span> {resumoHoje.qtd === 1 ? 'cliente' : 'clientes'} hoje.
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+                <Target size={12} className="text-primary animate-pulse" />
+                <h4 className="text-base font-black tracking-tight text-white leading-none">
+                  Bom dia, Shark {nomeUsuario.split(' ')[0]}
+                </h4>
+            </div>
+            <p className="text-sm text-muted-foreground font-medium leading-relaxed">
+              O radar detectou <span className="text-white font-black">{formatCurrency(resumoHoje.valor)}</span> aguardando liquidação de <span className="text-primary font-black">{resumoHoje.qtd}</span> {resumoHoje.qtd === 1 ? 'alvo' : 'alvos'} hoje.
             </p>
           </div>
         </div>
 
         <button 
           onClick={() => navigate('/cobranca')}
-          className="h-10 px-4 bg-primary text-black rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20"
+          className="w-full md:w-auto h-14 px-8 bg-primary text-black rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:scale-[1.03] active:scale-95 transition-all shadow-xl shadow-primary/20 group/btn relative z-10"
         >
-          Cobrar <ArrowRight className="w-3 h-3" />
+          Iniciar Ataque <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,16 +8,16 @@ import { useEmprestimos } from '@/hooks/useEmprestimos';
 import { useClientes } from '@/hooks/useClientes';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency, formatDate, safeNumber } from '@/utils/calculations';
-import { Search, AlertCircle, Copy, Layers } from 'lucide-react';
+import { Search, AlertCircle, Copy, Layers, Target, ChevronRight } from 'lucide-react';
 import { parseISO, differenceInDays, startOfDay } from 'date-fns';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 
-// Ícones PNG por tema
-import sharkDark from '@/components/icons/shark-dark.png';
-import sharkLight from '@/components/icons/shark-light.png';
+// Mascotes SVGs
+import sharkDark from '@/components/icons/mascote-alerta.svg';
+import sharkLight from '@/components/icons/mascote-erro.svg';
 
 const CobrancaPage = () => {
   const { theme } = useTheme();
@@ -30,11 +31,9 @@ const CobrancaPage = () => {
   const sharkImg = theme === 'dark' ? sharkLight : sharkDark;
   const hoje = startOfDay(new Date());
 
-  // ✅ Título Ajustado: Nome normal e sem itálico
-  const sharkTitle = profile?.nome 
-    ? `SHARK ${profile.nome}` 
-    : "SHARK TANK";
+  const sharkTitle = profile?.nome ? `Shark ${profile.nome}` : "Shark Tank";
 
+  // --- LÓGICA DE NEGÓCIO (MANTIDA) ---
   const devedoresProcessados = useMemo(() => {
     const ativos = (emprestimos || []).filter(
       e => String(e.status) !== 'pago' && String(e.status) !== 'quitado'
@@ -70,7 +69,7 @@ const CobrancaPage = () => {
 
     try {
       await navigator.clipboard.writeText(msg);
-      toast.success("Mensagem de cobrança copiada!", {
+      toast.success("Mensagem copiada para o ataque!", {
         icon: <img src={sharkImg} className="w-4 h-4" />
       });
 
@@ -82,94 +81,114 @@ const CobrancaPage = () => {
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['emprestimos'] });
     } catch (err) {
-      toast.error("Erro na operação.");
+      toast.error("Falha ao atualizar status.");
     }
   };
 
   if (loadingEmp || loadingCli) return <LoadingState />;
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto pb-32 px-4 relative min-h-screen">
+    <div className="min-h-screen pt-safe pb-safe px-5 md:px-10 space-y-8 max-w-5xl mx-auto animate-fade-in relative pb-32">
       
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className={`absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[500px] h-[500px] rounded-full blur-[120px] ${theme === 'dark' ? 'bg-primary/10' : 'bg-primary/5 opacity-50'}`} />
-        <div className={`absolute inset-0 opacity-[0.03] ${theme === 'dark' ? 'block' : 'hidden'}`} style={{ backgroundImage: "url('/banner-login.svg')" }} />
+      {/* Background Decorativo */}
+      <div className="fixed inset-0 z-[-1] pointer-events-none overflow-hidden">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] animate-pulse" />
       </div>
 
-      <div className="relative z-10 space-y-8">
-        <header className="pt-10 space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="h-1 bg-primary w-12 rounded-full" />
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Operação Ativa</p>
-          </div>
-          {/* ✅ Removido o 'italic' e o 'toUpperCase' do título principal */}
-          <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-foreground leading-none">
-            {sharkTitle}
-          </h1>
-          <p className="text-muted-foreground text-[11px] font-bold uppercase tracking-widest opacity-70">
-            {devedoresProcessados.length} Alvos no Radar
+      <header className="pt-8 space-y-2">
+        <div className="flex items-center gap-2 text-primary">
+          <Target size={14} className="animate-pulse" />
+          <p className="text-[10px] font-black uppercase tracking-[0.4em]">Operação Radar</p>
+        </div>
+        <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-foreground leading-none">
+          {sharkTitle}
+        </h1>
+        <p className="text-muted-foreground text-xs font-medium">
+          {devedoresProcessados.length} contratos ativos sob vigilância
+        </p>
+      </header>
+
+      {/* Bento Stats de Cobrança */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="stat-card border-l-4 border-l-primary">
+          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Vence Hoje</p>
+          <p className="text-3xl font-black text-foreground">
+            {devedoresProcessados.filter(e => e.diasRestantes === 0).length}
           </p>
-        </header>
-
-        <section className="grid grid-cols-2 gap-3">
-          <div className="bg-card border border-border/40 p-5 rounded-[2rem] shadow-sm">
-            <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Vence Hoje</p>
-            <p className="text-3xl font-black text-foreground">
-              {devedoresProcessados.filter(e => e.diasRestantes === 0).length}
-            </p>
-          </div>
-          <div className="bg-card border border-border/40 p-5 rounded-[2rem] shadow-sm">
-            <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Atrasados</p>
-            <p className="text-3xl font-black text-destructive">
-              {devedoresProcessados.filter(e => e.diasRestantes < 0).length}
-            </p>
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-[10px] font-black uppercase text-amber-500 tracking-widest flex items-center gap-2 px-1">
-            <Layers className="w-4 h-4" /> Alta Concentração de Capital
-          </h3>
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-            {Array.from(new Set(devedoresProcessados.filter(e => e.isMultiContrato).map(e => e.cliente_id))).map(id => {
-              const c = devedoresProcessados.find(e => e.cliente_id === id);
-              return (
-                <Badge 
-                  key={id} 
-                  onClick={() => setFiltroCliente(filtroCliente === id ? null : id)}
-                  className={`cursor-pointer py-2.5 px-5 rounded-2xl border transition-all duration-300 shadow-sm ${
-                    filtroCliente === id 
-                    ? 'bg-primary text-black border-primary' 
-                    : 'bg-card border-border/40 text-muted-foreground hover:border-primary/40'
-                  }`}
-                >
-                  {c?.clienteNome} <span className="ml-2 opacity-40">({c?.totalContratos})</span>
-                </Badge>
-              );
-            })}
-          </div>
-        </section>
-
-        <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Pesquisar alvo na banca..."
-            className="pl-11 h-14 rounded-2xl bg-card border-border/40 shadow-sm text-foreground focus-visible:ring-primary/30"
-          />
-          {filtroCliente && (
-            <Button variant="ghost" size="sm" onClick={() => setFiltroCliente(null)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase">
-              Limpar Filtro
-            </Button>
-          )}
         </div>
+        <div className="stat-card border-l-4 border-l-destructive">
+          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Atrasados</p>
+          <p className="text-3xl font-black text-destructive">
+            {devedoresProcessados.filter(e => e.diasRestantes < 0).length}
+          </p>
+        </div>
+        <div className="md:col-span-2 glass-card p-5 flex items-center justify-between bg-primary/5 border-primary/10">
+          <div className="space-y-1">
+            <p className="text-[9px] font-black uppercase tracking-widest text-primary">Total em Aberto</p>
+            <p className="text-2xl font-black text-foreground">
+              {formatCurrency(devedoresProcessados.reduce((acc, e) => acc + (safeNumber(e.valor_total) - safeNumber(e.valor_pago)), 0))}
+            </p>
+          </div>
+          <AlertCircle className="text-primary opacity-20" size={32} />
+        </div>
+      </div>
 
-        <div className="space-y-4">
-          {listaExibida.map((emp) => (
+      {/* Filtros de Concentração */}
+      <section className="space-y-4">
+        <h3 className="text-[11px] font-black uppercase text-amber-500 tracking-[0.2em] flex items-center gap-2 px-1">
+          <Layers size={14} /> Alta Concentração de Capital
+        </h3>
+        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+          {Array.from(new Set(devedoresProcessados.filter(e => e.isMultiContrato).map(e => e.cliente_id))).map(id => {
+            const c = devedoresProcessados.find(e => e.cliente_id === id);
+            const isSelected = filtroCliente === id;
+            return (
+              <button 
+                key={id} 
+                onClick={() => setFiltroCliente(isSelected ? null : id)}
+                className={`flex-shrink-0 px-5 py-3 rounded-2xl border transition-all duration-300 text-xs font-bold flex items-center gap-3 ${
+                  isSelected 
+                  ? 'bg-primary text-black border-primary shadow-lg shadow-primary/20' 
+                  : 'glass-card border-white/5 text-muted-foreground hover:border-primary/40'
+                }`}
+              >
+                {c?.clienteNome}
+                <span className={`px-2 py-0.5 rounded-lg text-[10px] ${isSelected ? 'bg-black/10' : 'bg-secondary'}`}>
+                  {c?.totalContratos}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Busca */}
+      <div className="relative group">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Localizar alvo na banca..."
+          className="pl-14 h-16 rounded-[1.8rem] bg-card/40 backdrop-blur-md border-white/5 focus-visible:ring-primary/20 text-base"
+        />
+        {filtroCliente && (
+          <Button variant="ghost" size="sm" onClick={() => setFiltroCliente(null)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase hover:bg-transparent text-primary">
+            Limpar Filtro
+          </Button>
+        )}
+      </div>
+
+      {/* Lista de Alvos */}
+      <div className="space-y-4">
+        {listaExibida.length > 0 ? (
+          listaExibida.map((emp) => (
             <SharkActionCard key={emp.id} emp={emp} onAttack={handleSharkAttack} sharkImg={sharkImg} />
-          ))}
-        </div>
+          ))
+        ) : (
+          <div className="text-center py-20 glass-card border-dashed">
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Nenhum devedor encontrado no radar.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -182,36 +201,40 @@ const SharkActionCard = ({ emp, onAttack, sharkImg }: any) => {
   const isHoje = emp.diasRestantes === 0;
 
   return (
-    <Card className={`group overflow-hidden border border-border/40 rounded-[2.2rem] bg-card/60 backdrop-blur-md transition-all hover:bg-card ${
-      isHoje ? 'ring-1 ring-primary shadow-lg' : ''
+    <Card className={`group relative overflow-hidden border-white/5 rounded-[2.5rem] bg-card/40 backdrop-blur-md transition-all hover:bg-card/60 ${
+      isHoje ? 'ring-2 ring-primary/50 shadow-2xl shadow-primary/10' : isVencido ? 'border-destructive/20' : ''
     }`}>
-      <CardContent className="p-6 flex items-center justify-between gap-4">
-        <div className="space-y-3 flex-1">
-          <div className="flex items-center gap-2">
-            <span className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-lg ${
+      <CardContent className="p-6 md:p-8 flex items-center justify-between gap-6">
+        <div className="space-y-4 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl tracking-widest ${
               isVencido ? 'bg-destructive/10 text-destructive' : 
-              isHoje ? 'bg-primary/20 text-primary animate-pulse' : 'bg-secondary text-muted-foreground'
+              isHoje ? 'bg-primary text-black' : 'bg-secondary text-muted-foreground'
             }`}>
-              {isHoje ? "🚨 Vence Hoje" : isVencido ? `⚠️ Atrasado ${Math.abs(emp.diasRestantes)}d` : `📅 em ${emp.diasRestantes} dias`}
+              {isHoje ? "Vence Hoje" : isVencido ? `Atrasado ${Math.abs(emp.diasRestantes)}d` : `Em ${emp.diasRestantes} dias`}
             </span>
             {statusStr === 'em_cobranca' && (
-              <Badge className="bg-blue-500/10 text-blue-500 text-[8px] font-black border-none uppercase px-2 py-1">
-                Radar Enviado
+              <Badge className="bg-blue-500/10 text-blue-500 text-[9px] font-black border-none uppercase px-3 py-1.5 tracking-widest">
+                Mensagem Enviada
+              </Badge>
+            )}
+            {emp.isMultiContrato && (
+              <Badge className="bg-amber-500/10 text-amber-500 text-[9px] font-black border-none uppercase px-3 py-1.5 tracking-widest">
+                Múltiplos Contratos
               </Badge>
             )}
           </div>
 
           <div>
-            <h3 className="text-xl font-black tracking-tight text-foreground group-hover:text-primary transition-colors">
+            <h3 className="text-2xl font-black tracking-tighter text-foreground group-hover:text-primary transition-colors">
               {emp.clienteNome}
             </h3>
-            <div className="flex items-center gap-2 mt-1">
-              {/* ✅ Removido o 'italic' do valor e data */}
-              <p className="text-2xl font-black text-foreground tracking-tighter">
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-3xl font-black text-foreground tracking-tighter">
                 {formatCurrency(saldo)}
               </p>
-              <div className="h-1 w-1 rounded-full bg-border" />
-              <p className="text-[10px] font-bold text-muted-foreground uppercase">
+              <div className="h-1.5 w-1.5 rounded-full bg-border" />
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
                 Vence {formatDate(emp.data_vencimento)}
               </p>
             </div>
@@ -220,16 +243,17 @@ const SharkActionCard = ({ emp, onAttack, sharkImg }: any) => {
 
         <Button 
           onClick={() => onAttack(emp)}
-          className={`h-16 w-16 rounded-[1.5rem] transition-all duration-500 ${
+          disabled={statusStr === 'em_cobranca'}
+          className={`h-20 w-20 rounded-[2rem] transition-all duration-500 shrink-0 ${
             statusStr === 'em_cobranca' 
-            ? 'bg-secondary text-muted-foreground' 
-            : 'bg-primary text-black hover:scale-105 shadow-md'
+            ? 'bg-secondary/50 grayscale opacity-40 cursor-not-allowed' 
+            : 'bg-primary text-black hover:scale-110 shadow-xl shadow-primary/20 active:scale-90'
           }`}
         >
           <img 
             src={sharkImg} 
             alt="Shark" 
-            className={`w-10 h-10 object-contain ${statusStr === 'em_cobranca' ? 'opacity-20' : 'animate-tada'}`} 
+            className={`w-12 h-12 object-contain ${statusStr === 'em_cobranca' ? '' : 'animate-tada'}`} 
           />
         </Button>
       </CardContent>
@@ -239,8 +263,8 @@ const SharkActionCard = ({ emp, onAttack, sharkImg }: any) => {
 
 const LoadingState = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
-    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary animate-pulse">Sincronizando Radar Shark...</p>
+    <div className="w-16 h-16 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-primary animate-pulse">Sincronizando Radar Shark</p>
   </div>
 );
 

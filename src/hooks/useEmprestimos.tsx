@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { addDays, parseISO, isValid } from 'date-fns';
 import { toast } from 'sonner';
 import { safeNumber } from '@/utils/calculations';
-import { saveOfflineEmprestimo } from '@/utils/offlinePersistence';
+import { saveOfflineAction } from '@/utils/offlinePersistence'; // ✅ Atualizado para a lógica de Ações
 
 export interface Emprestimo {
   id: string;
@@ -27,7 +27,7 @@ export const useEmprestimos = () => {
   const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  // ✅ Query principal: cache 5min para empréstimos
+  // ✅ Query principal: Cache inteligente
   const {
     data: emprestimos = [],
     isLoading: loading,
@@ -36,7 +36,6 @@ export const useEmprestimos = () => {
     queryKey: ['emprestimos', user?.id],
     queryFn: async () => {
       if (!user?.id) throw new Error('Não autenticado');
-
       const { data, error } = await supabase
         .from('emprestimos')
         .select('*')
@@ -47,146 +46,121 @@ export const useEmprestimos = () => {
       return data || [];
     },
     enabled: !!user?.id && !authLoading,
-    staleTime: 1000 * 60 * 5,    // 5min fresco
-    gcTime: 1000 * 60 * 15,     // 15min em memória
-    retry: (failureCount, error: any) =>
-      failureCount < 2 && ![401, 403].includes(error?.status),
-    placeholderData: [],         // Sem flash vazio
+    staleTime: 1000 * 60 * 5,
   });
 
-  // ✅ Mutation: ADD com offline
+  /**
+   * 🦈 MUTATION: ADD (CRIAR)
+   */
   const addEmprestimoMutation = useMutation({
     mutationFn: async (dados: any) => {
       if (!navigator.onLine) {
-        await saveOfflineEmprestimo({ ...dados, user_id: user?.id });
-
-        if ('serviceWorker' in navigator && 'SyncManager' in window) {
-          const registration = await navigator.serviceWorker.ready;
-          // @ts-ignore
-          await registration.sync.register('sync-emprestimos');
-        }
-
-        toast.warning('Modo Offline Ativado', {
-          description: 'O empréstimo será enviado quando houver sinal.',
-          duration: 5000,
-        });
-
-        return { data: null, error: null, offline: true };
+        await saveOfflineAction('CREATE', 'emprestimos', { ...dados, user_id: user?.id });
+        return { offline: true };
       }
 
       if (!user?.id) throw new Error('Não autenticado');
       const { data, error } = await supabase
         .from('emprestimos')
         .insert({ ...dados, user_id: user.id })
-        .select()
-        .single();
+        .select().single();
 
       if (error) throw error;
-      return { data, error: null };
+      return { data, offline: false };
     },
-    onSuccess: (_, variables) => {
-      if (!variables.offline) {
+    onSuccess: (res) => {
+      if (res?.offline) {
+        toast.warning('Operação offline registrada na banca.');
+      } else {
         queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
+        toast.success('Novo empréstimo registrado!');
       }
     },
   });
 
-  const addEmprestimo = (dados: any) => {
-    return addEmprestimoMutation.mutateAsync(dados);
-  };
-
-  // ✅ Mutation: RENOVAR
-  const renovarEmprestimoMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const emp = emprestimos.find((e) => e.id === id);
-      if (!emp) throw new Error('Contrato não encontrado');
-
-      const juroDoMes = safeNumber(emp.juros);
-      const novoValorPago = safeNumber(emp.valor_pago) + juroDoMes;
-      const novoValorTotal = safeNumber(emp.valor_total) + juroDoMes;
-
-      const dataBase = emp.data_vencimento ? parseISO(emp.data_vencimento) : new Date();
-      const novaData = addDays(isValid(dataBase) ? dataBase : new Date(), 30).toISOString();
-
-      const { error } = await supabase
-        .from('emprestimos')
-        .update({
-          data_vencimento: novaData,
-          valor_pago: novoValorPago,
-          valor_total: novoValorTotal,
-          updated_at: new Date().toISOString(),
-          status: 'ativo',
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast.success(`Juro de R$ ${juroDoMes.toFixed(2)} recebido!`);
-      return { error: null };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
-    },
-  });
-
-  const renovarEmprestimo = (id: string) => {
-    return renovarEmprestimoMutation.mutateAsync(id);
-  };
-
-  // ✅ Mutation: UPDATE
+  /**
+   * 🦈 MUTATION: UPDATE (EDITAR)
+   * Resolve o problema de mapeamento camelCase -> snake_case
+   */
   const updateEmprestimoMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
+      if (!navigator.onLine) {
+        await saveOfflineAction('UPDATE', 'emprestimos', updates, id);
+        return { offline: true };
+      }
+
       const { error } = await supabase.from('emprestimos').update(updates).eq('id', id);
       if (error) throw error;
-      return { error: null };
+      return { offline: false };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
+    onSuccess: (res) => {
+      if (res?.offline) {
+        toast.info('Alterações salvas localmente para sincronia.');
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
+        toast.success('Contrato atualizado com sucesso!');
+      }
     },
   });
 
-  const updateEmprestimo = (id: string, updates: any) => {
-    return updateEmprestimoMutation.mutateAsync({ id, updates });
-  };
-
-  // ✅ Mutation: DELETE
+  /**
+   * 🦈 MUTATION: DELETE (EXCLUIR)
+   */
   const deleteEmprestimoMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!navigator.onLine) {
+        await saveOfflineAction('DELETE', 'emprestimos', null, id);
+        return { offline: true };
+      }
       const { error } = await supabase.from('emprestimos').delete().eq('id', id);
       if (error) throw error;
-      return { error: null };
+      return { offline: false };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
+    onSuccess: (res) => {
+      if (res?.offline) {
+        toast.error('Exclusão agendada para quando houver sinal.');
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
+        toast.success('Registro removido da banca.');
+      }
     },
   });
 
-  const deleteEmprestimo = (id: string) => {
-    return deleteEmprestimoMutation.mutateAsync(id);
+  // --- FUNÇÕES DE ABSTRAÇÃO (Semânticas) ---
+
+  const addEmprestimo = (dados: any) => addEmprestimoMutation.mutateAsync(dados);
+  
+  const updateEmprestimo = (id: string, updates: any) => 
+    updateEmprestimoMutation.mutateAsync({ id, updates });
+
+  const deleteEmprestimo = (id: string) => 
+    deleteEmprestimoMutation.mutateAsync(id);
+
+  const renovarEmprestimo = async (id: string) => {
+    const emp = emprestimos.find((e) => e.id === id);
+    if (!emp) return;
+
+    const juroDoMes = safeNumber(emp.juros);
+    const dataBase = emp.data_vencimento ? parseISO(emp.data_vencimento) : new Date();
+    const novaData = addDays(isValid(dataBase) ? dataBase : new Date(), 30).toISOString();
+
+    const updates = {
+      data_vencimento: novaData,
+      valor_pago: safeNumber(emp.valor_pago) + juroDoMes,
+      valor_total: safeNumber(emp.valor_total) + juroDoMes,
+      updated_at: new Date().toISOString(),
+      status: 'ativo',
+    };
+
+    return updateEmprestimo(id, updates);
   };
 
-  // ✅ Mutation: MARCAR PAGO
-  const marcarComoPagoMutation = useMutation({
-    mutationFn: async ({ id, valorTotal }: { id: string; valorTotal: number }) => {
-      const { error } = await supabase
-        .from('emprestimos')
-        .update({
-          status: 'pago',
-          valor_pago: valorTotal,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-      return { error: null };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['emprestimos', user?.id] });
-    },
-  });
-
   const marcarComoPago = (id: string, valorTotal: number) => {
-    return marcarComoPagoMutation.mutateAsync({ id, valorTotal });
+    return updateEmprestimo(id, {
+      status: 'pago',
+      valor_pago: valorTotal,
+      updated_at: new Date().toISOString(),
+    });
   };
 
   return {

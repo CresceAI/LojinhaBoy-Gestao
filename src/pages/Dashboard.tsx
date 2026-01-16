@@ -4,31 +4,30 @@ import { format, startOfDay, isBefore, parseISO, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   TrendingUp, AlertCircle, Clock, 
-  Users, Info, ShieldCheck, Banknote, 
-  ArrowRight
+  Users, ShieldCheck, Banknote, 
+  PlusCircle, UserPlus, Receipt, 
+  LayoutDashboard, ArrowRight
 } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useEmprestimos } from '@/hooks/useEmprestimos';
 import { useClientes } from '@/hooks/useClientes';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { formatCurrency, safeNumber } from '@/utils/calculations';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTheme } from 'next-themes';
 
-import sharkDark from '@/components/icons/shark-dark.png';
-import sharkLight from '@/components/icons/shark-light.png';
+// Mascotes SVGs
+import sharkDark from '@/components/icons/mascote-erro.svg';
+import sharkLight from '@/components/icons/mascote-alerta.svg';
+import mascoteOk from '@/components/icons/mascote-cartao.svg';
 
 const Dashboard = () => {
   const { theme } = useTheme();
-  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { emprestimos, loading: loadingEmp } = useEmprestimos();
   const { clientes, loading: loadingCli } = useClientes();
 
-  const sharkImg = theme === 'dark' ? sharkLight : sharkDark;
-
+  // --- LÓGICA DE NEGÓCIO (MANTIDA INTEGRALMENTE) ---
   const clientesMap = useMemo(() => {
     const map = new Map();
     clientes?.forEach(c => map.set(c.id, c.nome));
@@ -60,6 +59,7 @@ const Dashboard = () => {
       const totalContrato = safeNumber(emp.valor_total);
       const status = String(emp.status).toLowerCase();
       const isAberto = status !== 'pago' && status !== 'quitado';
+      
       acc.lucroRealizado += jaPago; 
       if (isAberto) {
         acc.capitalNaRua += capOriginal;
@@ -73,6 +73,14 @@ const Dashboard = () => {
       return acc;
     }, initial);
   }, [emprestimos]);
+
+  // --- MELHORIA: Lógica de Mascote Assertiva ---
+  const sharkImg = useMemo(() => {
+    // Se houver pendências hoje, usa o mascote de "alerta/ataque"
+    if (resumoHoje.qtd > 0) return theme === 'dark' ? sharkLight : sharkDark;
+    // Caso contrário, usa o mascote padrão de sucesso/estável
+    return mascoteOk;
+  }, [theme, resumoHoje.qtd]);
 
   const proximosRecebimentos = useMemo(() => {
     return (emprestimos || [])
@@ -88,138 +96,227 @@ const Dashboard = () => {
       .slice(0, 5);
   }, [emprestimos]);
 
-  if (loadingEmp || loadingCli) return <LoadingState />;
+  if (loadingEmp || loadingCli) return <LoadingState theme={theme} mascot={mascoteOk} />;
 
   return (
-    // ✅ Safe Area: px-5 no mobile, md:px-2 no desktop
-    <div className="space-y-6 animate-in fade-in duration-500 pb-24 max-w-5xl mx-auto px-5 md:px-2 relative min-h-screen">
+    <div className="min-h-screen pt-safe pb-safe px-5 md:px-10 space-y-8 max-w-7xl mx-auto animate-fade-in relative pb-20">
       
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className={`absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[600px] h-[600px] rounded-full blur-[120px] ${theme === 'dark' ? 'bg-primary/10' : 'bg-primary/5'}`} />
-      </div>
-
-      <div className="relative z-10 space-y-6">
-        <header className="flex flex-col gap-1 pt-6">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary text-left">lojinha-boy pro</p>
-          <h1 className="text-4xl font-black tracking-tighter text-foreground leading-none uppercase text-left">
-            SHARK {profile?.nome}
+      {/* Header Centralizado */}
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-8">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-primary opacity-80">
+            <LayoutDashboard size={14} />
+            <p className="text-[10px] font-black uppercase tracking-[0.4em]">Lojinha-Boy Pro</p>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-foreground">
+            Olá, Shark {profile?.nome?.split(' ')[0]}
           </h1>
-          <p className="text-muted-foreground text-[10px] font-bold mt-1 uppercase tracking-widest text-left">
+          <p className="text-muted-foreground text-xs font-medium">
             {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
           </p>
-        </header>
+        </div>
+      </header>
 
-        {/* 🦈 SHARK RADAR */}
-        {resumoHoje.qtd > 0 && (
-          <div className="animate-in slide-in-from-top-4 duration-700">
-            <div className="relative group overflow-hidden bg-primary/10 border border-primary/20 backdrop-blur-xl p-5 rounded-[2.2rem] flex items-center justify-between shadow-xl">
-              <div className="flex items-center gap-4 relative z-10">
-                <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center text-black shadow-lg">
-                  <img src={sharkImg} alt="Shark" className="w-9 h-9 object-contain" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-foreground leading-none">Radar do Tubarão</h4>
-                  <p className="text-[11px] text-muted-foreground mt-1 font-medium">
-                    Detectamos <span className="text-primary font-black">{formatCurrency(resumoHoje.valor)}</span> hoje.
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => navigate('/cobranca')} className="h-10 px-4 bg-primary text-black rounded-xl text-[10px] font-black uppercase tracking-widest">
-                Atacar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* CARD PRINCIPAL: CORREÇÃO DE MOBILE OVERLAP */}
-        <div className="relative overflow-hidden bg-card/40 backdrop-blur-md border border-border/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl">
+      {/* Grid Principal Bento */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        {/* Card de Patrimônio com Mascote Dinâmico */}
+        <div className="md:col-span-2 balance-card group relative overflow-hidden flex flex-col justify-between min-h-[240px]">
+          <img 
+            src={mascoteOk} 
+            className="absolute -right-8 -bottom-8 w-48 h-48 opacity-[0.08] dark:opacity-[0.04] pointer-events-none grayscale group-hover:grayscale-0 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-1000 ease-in-out" 
+            alt="Status"
+          />
+          
           <div className="relative z-10">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Patrimônio Sob Gestão</span>
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-foreground leading-tight">
+            <span className="pill-badge bg-primary/20 text-primary border border-primary/20 mb-4 inline-block font-bold px-3 py-1">
+              Patrimônio sob gestão
+            </span>
+            <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-foreground dark:text-white">
               {formatCurrency(stats.capitalNaRua + stats.lucroRealizado)}
             </h2>
+          </div>
 
-            {/* ✅ AJUSTE RESPONSIVO: flex-col no mobile (para não encavalar) e grid no desktop */}
-            <div className="flex flex-col sm:grid sm:grid-cols-2 gap-6 sm:gap-12 mt-8 pt-8 border-t border-border/10">
-              <section className="min-w-0">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Lucro no Bolso</p>
-                <p className="text-2xl md:text-3xl font-black text-emerald-500 leading-none truncate">
-                  {formatCurrency(stats.lucroRealizado)}
-                </p>
-              </section>
-              <section className="min-w-0">
-                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Capital na Rua</p>
-                <p className="text-2xl md:text-3xl font-black text-foreground leading-none opacity-80 truncate">
-                  {formatCurrency(stats.capitalNaRua)}
-                </p>
-              </section>
+          <div className="relative z-10 grid grid-cols-2 gap-4 pt-6 border-t border-foreground/10 dark:border-white/10 mt-6">
+            <div>
+              <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Lucro no Bolso</p>
+              <p className="text-xl font-bold text-foreground dark:text-white">{formatCurrency(stats.lucroRealizado)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-primary/70 uppercase tracking-widest mb-1">Capital na Rua</p>
+              <p className="text-xl font-bold text-foreground/80 dark:text-white/80">{formatCurrency(stats.capitalNaRua)}</p>
             </div>
           </div>
         </div>
 
-        {/* INDICADORES (Grid de Cards Pequenos) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatSmall label="Atrasados" value={formatCurrency(stats.valorEmAtraso)} icon={AlertCircle} color={stats.valorEmAtraso > 0 ? "text-destructive" : "text-emerald-500"} />
-          <StatSmall label="Projetado" value={formatCurrency(stats.lucroProjetado)} icon={TrendingUp} color="text-primary" />
-          <StatSmall label="Em Aberto" value={stats.ativosCount} icon={ShieldCheck} color="text-blue-500" />
-          <StatSmall label="Carteira" value={clientes?.length || 0} icon={Users} color="text-slate-400" />
+        {/* Radar de Hoje com Mascote Reativo */}
+        <div className={`md:col-span-2 glass-card flex flex-col justify-between border-t-2 transition-all duration-500 ${resumoHoje.qtd > 0 ? 'border-t-primary shadow-lg shadow-primary/5' : 'border-t-transparent'}`}>
+            <div className="flex justify-between items-start gap-4">
+                <div className="space-y-2">
+                    <h4 className="text-lg font-black tracking-tight uppercase text-foreground">Radar do dia</h4>
+                    <p className="text-sm text-muted-foreground leading-snug">
+                        {resumoHoje.qtd > 0 
+                            ? `Tubarão, detectamos ${resumoHoje.qtd} recebimentos hoje somando ${formatCurrency(resumoHoje.valor)}.` 
+                            : "Sua carteira está saudável. Nenhum recebimento pendente para hoje."}
+                    </p>
+                </div>
+                <div className={`${resumoHoje.qtd > 0 ? 'animate-tada' : 'animate-float'} shrink-0`}>
+                    <img 
+                      src={sharkImg} 
+                      className={`w-20 h-20 object-contain drop-shadow-2xl ${resumoHoje.qtd === 0 && 'grayscale opacity-50'}`} 
+                      alt="Shark Status" 
+                    />
+                </div>
+            </div>
+
+            {resumoHoje.qtd > 0 && (
+                <button 
+                    onClick={() => navigate('/cobranca')}
+                    className="w-full mt-6 bg-primary text-primary-foreground font-black uppercase text-[10px] tracking-widest py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group"
+                >
+                    Iniciar Ataque de Cobrança
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+            )}
         </div>
 
-        {/* LISTAGENS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
-          <div className="space-y-4">
-            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 px-1 text-amber-500">
-              <Clock className="w-4 h-4" /> Vencimentos
-            </h3>
-            {proximosRecebimentos.map(emp => (
-              <TransactionItem key={emp.id} name={clientesMap.get(emp.cliente_id) || 'Cliente'} date={emp.data_vencimento ? format(parseISO(emp.data_vencimento), "dd/MM") : '--'} amount={formatCurrency(safeNumber(emp.valor_total) - safeNumber(emp.valor_pago))} isLate={emp.data_vencimento ? isBefore(startOfDay(parseISO(emp.data_vencimento)), startOfDay(new Date())) : false} />
-            ))}
-          </div>
-          <div className="space-y-4">
-            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] flex items-center gap-2 px-1 text-emerald-500">
-              <Banknote className="w-4 h-4" /> Entradas (Juros)
-            </h3>
-            {entradasRecentes.map(emp => (
-              <TransactionItem key={emp.id} name={clientesMap.get(emp.cliente_id) || 'Cliente'} date={String(emp.status) === 'pago' ? "Quitado" : "Renovação"} amount={formatCurrency(safeNumber(emp.valor_pago))} variant="success" />
-            ))}
-          </div>
+        {/* Ações Rápidas */}
+        <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QuickAction icon={PlusCircle} label="Novo Empréstimo" onClick={() => navigate('/emprestimos')} variant="primary" />
+            <QuickAction icon={UserPlus} label="Novo Cliente" onClick={() => navigate('/clientes')} variant="info" />
+            <QuickAction icon={Receipt} label="Cobranças" onClick={() => navigate('/cobranca')} variant="warning" />
+            <QuickAction icon={Users} label="Gestão Total" onClick={() => navigate('/clientes')} variant="default" />
         </div>
+
+        {/* Stats Bento */}
+        <StatSmall label="Em Atraso" value={formatCurrency(stats.valorEmAtraso)} icon={AlertCircle} type={stats.valorEmAtraso > 0 ? 'danger' : 'success'} />
+        <StatSmall label="Lucro Projetado" value={formatCurrency(stats.lucroProjetado)} icon={TrendingUp} type="primary" />
+        <StatSmall label="Contratos Ativos" value={stats.ativosCount} icon={ShieldCheck} type="default" />
+        <StatSmall label="Total Clientes" value={clientes?.length || 0} icon={Users} type="default" />
+
+        {/* Listas de Transações */}
+        <div className="md:col-span-2 space-y-4">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-warning flex items-center gap-2 px-2">
+                <Clock size={14} /> Próximos Vencimentos
+            </h3>
+            <div className="space-y-3">
+                {proximosRecebimentos.length > 0 ? proximosRecebimentos.map(emp => (
+                    <TransactionRow 
+                        key={emp.id} 
+                        name={clientesMap.get(emp.cliente_id) || 'Cliente'} 
+                        info={emp.data_vencimento ? format(parseISO(emp.data_vencimento), "dd/MM") : '--'} 
+                        amount={formatCurrency(safeNumber(emp.valor_total) - safeNumber(emp.valor_pago))} 
+                        isLate={emp.data_vencimento ? isBefore(startOfDay(parseISO(emp.data_vencimento)), startOfDay(new Date())) : false} 
+                    />
+                )) : (
+                  <EmptyState message="Sem vencimentos próximos." />
+                )}
+            </div>
+        </div>
+
+        <div className="md:col-span-2 space-y-4">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-success flex items-center gap-2 px-2">
+                <Banknote size={14} /> Entradas Recentes
+            </h3>
+            <div className="space-y-3">
+                {entradasRecentes.length > 0 ? entradasRecentes.map(emp => (
+                    <TransactionRow 
+                        key={emp.id} 
+                        name={clientesMap.get(emp.cliente_id) || 'Cliente'} 
+                        info={String(emp.status) === 'pago' ? "Quitado" : "Parcial"} 
+                        amount={formatCurrency(safeNumber(emp.valor_pago))} 
+                        variant="success" 
+                    />
+                )) : (
+                  <EmptyState message="Nenhuma entrada recente registrada." />
+                )}
+            </div>
+        </div>
+
       </div>
     </div>
   );
 };
 
-// Componente de Estatística Pequeno
-const StatSmall = ({ label, value, icon: Icon, color }: any) => (
-  <div className="bg-card/40 backdrop-blur-md p-4 md:p-5 rounded-[2rem] border border-border/20 shadow-sm">
-    <div className={`p-2.5 rounded-xl bg-secondary/50 w-fit mb-3 ${color}`}><Icon className="w-4 h-4" /></div>
-    <p className="text-muted-foreground text-[8px] font-black uppercase tracking-widest mb-1">{label}</p>
-    <p className="text-lg md:text-xl font-black truncate leading-none text-foreground">{value}</p>
-  </div>
-);
+/* --- COMPONENTES AUXILIARES (ESTILIZAÇÃO REFINADA) --- */
 
-// Item de Transação Listado
-const TransactionItem = ({ name, date, amount, isLate, variant = "default" }: any) => (
-  <div className="flex items-center justify-between p-4 bg-card/40 backdrop-blur-md rounded-[1.5rem] border border-border/10">
-    <div className="flex items-center gap-3 min-w-0">
-      <div className={`w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center ${variant === 'success' ? 'bg-emerald-500/10' : isLate ? 'bg-destructive/10' : 'bg-primary/5'}`}>
-        {variant === 'success' ? <Banknote className="w-4 h-4 text-emerald-600" /> : <Clock className="w-4 h-4 text-primary" />}
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-bold leading-none text-foreground truncate">{name}</p>
-        <p className={`text-[9px] font-black mt-1 ${isLate ? 'text-destructive' : 'text-muted-foreground uppercase'}`}>{isLate ? 'VENCIDO' : date}</p>
-      </div>
+const QuickAction = ({ icon: Icon, label, onClick, variant }: any) => {
+    const variants: any = {
+        primary: "text-primary border-primary/20 bg-primary/5 hover:bg-primary/10",
+        info: "text-blue-500 border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10",
+        warning: "text-warning border-warning/20 bg-warning/5 hover:bg-warning/10",
+        default: "text-muted-foreground border-border bg-secondary/20 hover:bg-secondary/40"
+    };
+
+    return (
+        <button 
+            onClick={onClick}
+            className={`glass-button flex flex-col items-center justify-center gap-3 p-6 group border transition-all duration-300 ${variants[variant]}`}
+        >
+            <Icon className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-foreground">{label}</span>
+        </button>
+    );
+};
+
+const StatSmall = ({ label, value, icon: Icon, type }: any) => {
+    const colors: any = {
+        danger: "text-destructive bg-destructive/10",
+        success: "text-emerald-500 bg-emerald-500/10",
+        primary: "text-primary bg-primary/10",
+        default: "text-muted-foreground bg-secondary/50"
+    };
+
+    return (
+        <div className="stat-card hover:border-primary/30 group transition-all duration-300 border border-transparent">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-all ${colors[type]}`}>
+                <Icon size={16} />
+            </div>
+            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+            <p className="text-xl font-black text-foreground truncate tracking-tighter">{value}</p>
+        </div>
+    );
+};
+
+const TransactionRow = ({ name, info, amount, isLate, variant = "default" }: any) => (
+    <div className="list-item-glass hover:bg-secondary/40 transition-all cursor-pointer group">
+        <div className="flex items-center gap-3 overflow-hidden">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${variant === 'success' ? 'bg-emerald-500/10 text-emerald-500' : isLate ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                {variant === 'success' ? <TrendingUp size={18} /> : <Clock size={18} />}
+            </div>
+            <div className="min-w-0">
+                <p className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">{name}</p>
+                <p className={`text-[10px] font-black uppercase tracking-tighter ${isLate ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`}>
+                    {isLate ? 'Vencido' : info}
+                </p>
+            </div>
+        </div>
+        <div className="text-right shrink-0">
+            <p className={`text-sm font-black ${variant === 'success' ? 'text-emerald-500' : 'text-foreground'}`}>
+                {variant === 'success' ? `+${amount}` : amount}
+            </p>
+        </div>
     </div>
-    <p className={`text-sm font-black flex-shrink-0 ml-2 ${variant === 'success' ? 'text-emerald-500' : 'text-foreground'}`}>
-      {variant === 'success' ? `+${amount}` : amount}
-    </p>
+);
+
+const EmptyState = ({ message }: { message: string }) => (
+  <div className="p-8 rounded-3xl bg-secondary/10 border border-dashed border-border flex flex-col items-center justify-center text-center">
+    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{message}</p>
   </div>
 );
 
-const LoadingState = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-    <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Sincronizando Banca...</p>
+const LoadingState = ({ theme, mascot }: any) => (
+  <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
+    <div className="relative">
+        <div className="w-24 h-24 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center">
+            <img src={mascot} className="w-12 h-12 opacity-50 animate-pulse grayscale" alt="Loading" />
+        </div>
+    </div>
+    <div className="text-center space-y-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-primary animate-pulse">Sincronizando Banca...</p>
+        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Preparando o terreno para o Shark</p>
+    </div>
   </div>
 );
 

@@ -1,48 +1,57 @@
 {
-  "name": "LojinhaBoy Pro - Gestão Financeira",
-  "short_name": "LojinhaBoy",
-  "description": "Sistema de elite para gestão de empréstimos e banca",
+  "name": "Creditrack | LojinhaBoy Pro",
+  "short_name": "Creditrack",
+  "description": "Sistema soberano de gestão de crédito e monitoramento de banca.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#020617",
+  "theme_color": "#020617",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
+      "src": "/src/components/icons/icon-app.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
+      "src": "/src/components/icons/icon-app.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
       "purpose": "maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
     }
   ],
   "shortcuts": [
     {
       "name": "Novo Empréstimo",
-      "short_name": "Empréstimo",
+      "short_name": "Adicionar",
       "url": "/emprestimos",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "description": "Abrir painel de novos contratos",
+      "icons": [
+        {
+          "src": "/src/components/icons/mascote-ok.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
     },
     {
-      "name": "Ver Clientes",
+      "name": "Radar de Clientes",
       "short_name": "Clientes",
       "url": "/clientes",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "description": "Visualizar base devedora",
+      "icons": [
+        {
+          "src": "/src/components/icons/mascote-dash.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
     }
   ],
   "categories": ["finance", "business"],
   "lang": "pt-BR",
   "dir": "ltr",
-  "display_override": ["window-controls-overlay", "minimal-ui"]
+  "display_override": ["window-controls-overlay", "minimal-ui"],
+  "prefer_related_applications": false
 }

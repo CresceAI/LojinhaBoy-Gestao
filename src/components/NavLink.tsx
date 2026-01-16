@@ -8,6 +8,10 @@ interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
   pendingClassName?: string;
 }
 
+/**
+ * NavLink Refinado - Shark Edition
+ * Aplica Heurísticas de Visibilidade e Feedback Tátil
+ */
 const NavLink = memo(forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
   ({ 
     className, 
@@ -23,13 +27,27 @@ const NavLink = memo(forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
         to={to}
         className={({ isActive, isPending }) =>
           cn(
-            "transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            // --- Base UX Styles ---
+            // Heurística #8: Minimalista e Consistente
+            "relative inline-flex items-center justify-center transition-all duration-300 ease-in-out",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            "hover:opacity-100 active:scale-95 select-none cursor-pointer",
+            
+            // --- Link Common State ---
             className,
-            isActive && [
-              "font-black shadow-lg scale-[1.02]",
+
+            // --- Heurística #1: Visibilidade do Sistema (Estado Ativo) ---
+            isActive ? cn(
+              "font-black scale-[1.05] z-10", // Ganho de autoridade visual
+              "drop-shadow-[0_0_12px_rgba(var(--primary),0.3)]", // Glow sutil neon
               activeClassName
-            ],
-            isPending && pendingClassName
+            ) : "opacity-70 hover:opacity-100 hover:translate-x-0.5 md:hover:translate-x-0 md:hover:-translate-y-0.5",
+
+            // --- Estado Pendente (Feedback de Carregamento) ---
+            isPending && cn(
+              "animate-pulse cursor-wait opacity-50",
+              pendingClassName
+            )
           )
         }
         {...props}

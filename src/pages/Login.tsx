@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
-  Wallet, Mail, Lock, User, ArrowRight,
-  Linkedin, Instagram, Phone, Eye, EyeOff, ShieldCheck
+  Wallet, Mail, Lock, User, 
+  Eye, EyeOff, ShieldCheck, ChevronRight
 } from "lucide-react";
 
 const Login = () => {
@@ -24,23 +24,46 @@ const Login = () => {
     document.documentElement.classList.add("dark");
   }, []);
 
+  // ✅ Verificação automática ao carregar se o user já está logado
   useEffect(() => {
-    if (user) navigate("/dashboard");
+    if (user) {
+      const hasSeenTour = localStorage.getItem(`shark_tour_${user.email}`);
+      if (!hasSeenTour) {
+        navigate("/onboarding");
+      } else {
+        navigate("/dashboard");
+      }
+    }
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     setSubmitting(true);
+    
     try {
       if (isLogin) {
         const { error } = await signIn(email.trim(), password);
-        if (error) toast.error("Credenciais inválidas.");
-        else toast.success("Banca autorizada!");
+        if (error) {
+          toast.error("Credenciais inválidas.");
+        } else {
+          toast.success("Banca autorizada!");
+          // ✅ Lógica de Onboarding após login com sucesso
+          const hasSeenTour = localStorage.getItem(`shark_tour_${email.trim()}`);
+          if (!hasSeenTour) {
+            navigate("/onboarding");
+          } else {
+            navigate("/dashboard");
+          }
+        }
       } else {
         const { error } = await signUp(email.trim(), password, nome.trim());
         if (error) toast.error("Erro ao registrar operador.");
-        else toast.success("Registro concluído!");
+        else {
+          toast.success("Registro concluído!");
+          // Novos registros sempre passam pelo Onboarding
+          navigate("/onboarding");
+        }
       }
     } finally {
       setSubmitting(false);
@@ -52,13 +75,13 @@ const Login = () => {
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-4 bg-[#020617]">
       
-      {/* 🖼️ CAMADA 1: Imagem de Fundo (banner-login.svg) */}
+      {/* 🖼️ BACKGROUND Pattern */}
       <div 
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-30"
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-20 pointer-events-none"
         style={{ backgroundImage: "url('/banner-login.svg')" }}
       />
 
-      {/* 🔮 CAMADA 2: Glow Orbs (Mesmo Estilo do Dashboard) */}
+      {/* 🔮 Glow Orbs */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[100px]" />
@@ -68,12 +91,12 @@ const Login = () => {
         
         {/* Branding Area */}
         <div className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-[2.2rem] bg-card border border-white/10 flex items-center justify-center shadow-2xl backdrop-blur-xl">
-            <Wallet className="w-8 h-8 text-primary" strokeWidth={2.5} />
+          <div className="mx-auto w-16 h-16 rounded-[2.2rem] bg-card border border-white/10 flex items-center justify-center shadow-2xl backdrop-blur-xl group">
+            <Wallet className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" strokeWidth={2.5} />
           </div>
           <div className="space-y-1">
             <h1 className="text-4xl font-black tracking-tighter text-white">LojinhaBoy<span className="text-primary">.</span></h1>
-            <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.4em] opacity-70">Sovereign Financial System</p>
+            <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.4em] opacity-70">Creditrack Sovereign System</p>
           </div>
         </div>
 
@@ -83,7 +106,7 @@ const Login = () => {
           
           <div className="relative bg-card/60 border border-white/5 p-8 rounded-[2.5rem] shadow-2xl backdrop-blur-2xl">
             <div className="flex items-center justify-between mb-8 px-1">
-              <h2 className="text-xl font-black text-white tracking-tight">{isLogin ? "Acessar Conta" : "Novo Operador"}</h2>
+              <h2 className="text-xl font-black text-white tracking-tight italic">{isLogin ? "Acessar Conta" : "Novo Operador"}</h2>
               <ShieldCheck className="w-5 h-5 text-primary/30" />
             </div>
 
@@ -136,10 +159,11 @@ const Login = () => {
 
               <Button
                 type="submit"
-                className="w-full h-14 rounded-2xl bg-primary text-[#020617] font-black uppercase text-xs tracking-[0.2em] shadow-[0_10px_30px_rgba(190,255,100,0.2)] hover:scale-[1.01] transition-all active:scale-[0.98]"
+                className="w-full h-15 rounded-2xl bg-primary text-[#020617] font-black uppercase text-xs tracking-[0.2em] shadow-[0_10px_30px_rgba(190,255,100,0.2)] hover:scale-[1.01] transition-all active:scale-[0.98] py-7"
                 disabled={submitting}
               >
-                {submitting ? "Processando..." : isLogin ? "Entrar no Sistema" : "Registrar Agora"}
+                {submitting ? "Autenticando..." : isLogin ? "Iniciar Sessão" : "Ativar Licença"}
+                <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </form>
 
@@ -152,40 +176,25 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Footer Signature: Engineered by Renato Filho */}
+        {/* Footer Shark Signature */}
         <footer className="text-center space-y-4 pt-4 opacity-40 hover:opacity-100 transition-opacity duration-700">
           <p className="text-[9px] font-black uppercase tracking-[0.5em] text-white leading-relaxed">
-            Designed & Engineered by <span className="text-primary">Renato Filho</span><br/>
+            Engineered by <span className="text-primary">Renato Filho</span><br/>
             <span className="text-[7px] opacity-60">Full-Stack Engineer • Maracanaú, CE</span>
           </p>
-          <div className="flex justify-center gap-7">
-            <SocialLink href="https://www.linkedin.com/in/renatofilhodevandtech" icon={<Linkedin className="w-4 h-4" />} />
-            <SocialLink href="https://www.instagram.com/renatofilho8" icon={<Instagram className="w-4 h-4" />} />
-            <SocialLink href="https://wa.me/5585985252317" icon={<Phone className="w-4 h-4" />} />
-          </div>
         </footer>
       </div>
     </div>
   );
 };
 
-const SocialLink = ({ href, icon }: { href: string; icon: React.ReactNode }) => (
-  <a href={href} target="_blank" rel="noopener noreferrer" className="text-white hover:text-primary transition-all hover:scale-125 duration-300">
-    {icon}
-  </a>
-);
-
 const LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-[#020617]">
-    <div 
-      className="absolute inset-0 opacity-10 bg-cover bg-center"
-      style={{ backgroundImage: "url('/banner-login.svg')" }}
-    />
     <div className="flex flex-col items-center gap-4 z-10">
       <div className="w-16 h-16 rounded-[2rem] bg-card border border-white/10 flex items-center justify-center text-primary animate-bounce shadow-2xl">
         <Wallet className="w-8 h-8" />
       </div>
-      <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary animate-pulse">Estabelecendo Conexão...</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary animate-pulse">Sincronizando banca...</p>
     </div>
   </div>
 );
