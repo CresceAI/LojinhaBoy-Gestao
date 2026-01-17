@@ -3,552 +3,157 @@
 @tailwind utilities;
 
 /* ===========================
-   DESIGN SYSTEM HSL FINTECH
+   DESIGN SYSTEM HSL FINTECH (SHARK)
    =========================== */
 @layer base {
   :root {
     /* Light Mode - Liquid Glass Apple Style */
     --background: 210 20% 98%;
     --foreground: 222 47% 11%;
-
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary Blue confiável */
+    /* Primary Blue */
     --primary: 211 100% 50%;
     --primary-foreground: 0 0% 100%;
     --primary-hover: 211 100% 45%;
 
-    /* Cinzas suaves */
     --secondary: 210 20% 96%;
     --secondary-foreground: 222 47% 11%;
-
     --muted: 210 20% 96%;
     --muted-foreground: 215 16% 47%;
 
-    /* Accent verde-lima (neon) */
     --accent: 78 84% 45%;
     --accent-foreground: 0 0% 0%;
 
-    /* Sucesso / Erro */
     --success: 142 70% 45%;
     --success-foreground: 0 0% 100%;
-
     --destructive: 4 90% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borda / input / foco */
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 211 100% 50%;
+    --radius: 1.25rem; /* Leve aumento para curvas mais suaves */
 
-    /* Raio padrão */
-    --radius: 1rem;
-
-    /* Warning / Info */
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
     --info: 211 100% 50%;
-    --info-foreground: 0 0% 100%;
 
     /* Glass Variables */
     --glass-bg: 0 0% 100% / 0.7;
     --glass-border: 0 0% 100% / 0.3;
     --glass-blur: 20px;
-
-    /* Neon extra (para CTA) */
-    --neon: 78 84% 55%;
-    --neon-foreground: 0 0% 0%;
   }
 
   .dark {
-    /* Dark Mode - Liquid Glass Fintech */
+    /* Dark Mode - Liquid Glass Fintech (Shark Identity) */
     --background: 220 13% 5%;
     --foreground: 210 40% 98%;
-
     --card: 220 13% 10%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 220 13% 10%;
-    --popover-foreground: 210 40% 98%;
-
-    /* Primary - Lime Green Accent */
+    /* Primary - Lime Green Neon */
     --primary: 78 84% 55%;
     --primary-foreground: 0 0% 0%;
     --primary-hover: 78 84% 50%;
 
     --secondary: 220 13% 15%;
-    --secondary-foreground: 210 40% 98%;
-
     --muted: 220 13% 18%;
     --muted-foreground: 215 20% 55%;
 
-    --accent: 78 84% 55%;
-    --accent-foreground: 0 0% 0%;
-
-    --success: 142 70% 45%;
-    --success-foreground: 0 0% 0%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
     --border: 220 13% 18%;
-    --input: 220 13% 18%;
     --ring: 78 84% 55%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 0%;
-
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 0%;
-
-    /* Glass Variables Dark */
     --glass-bg: 220 13% 10% / 0.7;
     --glass-border: 220 13% 20% / 0.5;
   }
 
   * {
     @apply border-border;
-    transition:
-      background-color 0.15s ease,
-      color 0.15s ease,
-      border-color 0.15s ease,
-      box-shadow 0.2s ease,
-      transform 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
 
   body {
-    @apply bg-background text-foreground text-[15px] leading-relaxed;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    @apply bg-background text-foreground text-[15px] leading-relaxed overflow-x-hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
 
   .dark body {
-    background:
-      radial-gradient(circle at top, hsla(78,84%,55%,0.16), transparent 55%),
+    background: 
+      radial-gradient(circle at top, hsla(78,84%,55%,0.12), transparent 50%),
       radial-gradient(circle at bottom, hsl(220 13% 5%), hsl(220 13% 3%));
-  }
-
-  /* Scrollbar minimal */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/20 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
   }
 }
 
 /* ===========================
-   UTILITIES / COMPONENTS
+   UTILITIES & PREMIUM GLASS
    =========================== */
 @layer utilities {
-  /* Animations */
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  /* Animações Consolidadas (Sem duplicatas) */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
   }
 
-  @keyframes slideUp {
-    from { transform: translateY(16px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+  @keyframes blob {
+    0% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(20px, -30px) scale(1.05); }
+    66% { transform: translate(-10px, 15px) scale(0.95); }
+    100% { transform: translate(0, 0) scale(1); }
   }
 
-  @keyframes scaleIn {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-  }
+  .animate-float { animation: float 4s ease-in-out infinite; }
+  .animate-blob { animation: blob 8s infinite alternate ease-in-out; }
 
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
+  /* Safe Area Padding - Melhorado para novos aparelhos */
+  .pb-safe { padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem)); }
+  .pt-safe { padding-top: max(1rem, env(safe-area-inset-top, 1rem)); }
 
-  .animate-slide-up {
-    animation: slideUp 0.3s ease-out;
-  }
-
-  .animate-scale-in {
-    animation: scaleIn 0.22s ease-out;
-  }
-
-  /* Safe area padding mobile */
-  .pb-safe {
-    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
-  }
-
-  .pt-safe {
-    padding-top: max(1rem, env(safe-area-inset-top));
-  }
-
-  /* Ilustração de fundo opcional (dashboard/login) */
-  .bg-dashboard-illustration {
-    background-image: url("/favicon1.png");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: clamp(200px, 40vw, 320px);
-    pointer-events: none;
-  }
-
-  /* ===========================
-     LIQUID GLASS / APPLE STYLE
-     =========================== */
-
-  /* Base Glass Effect */
-  .glass {
-    background: hsl(var(--glass-bg));
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid hsl(var(--glass-border));
-  }
-
-  /* Glass Card */
+  /* Glass Card - Responsivo (Evita o "espremido") */
   .glass-card {
-    @apply rounded-3xl p-5;
+    @apply rounded-[2rem] p-4 md:p-6; /* p-4 no mobile para ganhar espaço */
     background: hsl(var(--glass-bg));
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid hsl(var(--glass-border));
-    box-shadow:
-      0 4px 24px -1px hsl(0 0% 0% / 0.08),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.08);
+    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.1);
   }
 
   .dark .glass-card {
-    box-shadow:
-      0 4px 24px -1px hsl(0 0% 0% / 0.3),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.05);
+    box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   }
 
-  /* Glass Card Small */
-  .glass-card-sm {
-    @apply rounded-2xl p-4;
-    background: hsl(var(--glass-bg));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid hsl(var(--glass-border));
+  /* Efeito de Brilho Neon (Shark Glow) */
+  .neon-glow {
+    text-shadow: 0 0 10px hsla(var(--primary) / 0.5), 0 0 20px hsla(var(--primary) / 0.3);
   }
 
-  /* Glass Button */
-  .glass-button {
-    @apply px-4 py-3 rounded-2xl font-medium transition-all duration-200;
-    background: hsl(var(--glass-bg));
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--glass-border));
-  }
-
-  .glass-button:hover {
-    background: hsl(var(--secondary));
-  }
-
-  .glass-button:active {
-    transform: scale(0.98);
-  }
-
-  /* Balance Card - Premium Glass */
+  /* Balance Card Premium */
   .balance-card {
-    @apply relative overflow-hidden rounded-3xl p-6;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--card) / 0.9) 0%,
-      hsl(var(--secondary) / 0.8) 50%,
-      hsl(var(--card) / 0.9) 100%
-    );
+    @apply relative overflow-hidden rounded-[2.5rem] p-6 md:p-8;
+    background: linear-gradient(135deg, hsl(var(--card) / 0.95) 0%, hsl(var(--secondary) / 0.8) 100%);
     backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid hsl(var(--border) / 0.5);
-    box-shadow:
-      0 8px 32px -4px hsl(0 0% 0% / 0.1),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.2);
+    border: 1px solid hsl(var(--border) / 0.4);
   }
 
-  .dark .balance-card {
-    background: linear-gradient(
-      135deg,
-      hsl(220 13% 12% / 0.9) 0%,
-      hsl(220 13% 8% / 0.8) 50%,
-      hsl(220 13% 15% / 0.9) 100%
-    );
-    box-shadow:
-      0 8px 32px -4px hsl(0 0% 0% / 0.4),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.08);
-  }
-
-  .balance-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      hsl(var(--primary) / 0.3) 50%,
-      transparent 100%
-    );
-  }
-
-  /* Stat Card - Frosted */
-  .stat-card {
-    @apply rounded-2xl p-4;
-    background: hsl(var(--secondary) / 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid hsl(var(--border) / 0.3);
-  }
-
-  /* Transaction Item */
-  .transaction-item {
-    @apply flex items-center justify-between py-3 border-b border-border/30 last:border-0;
-  }
-
-  /* Fintech Cards (legacy support) */
-  .fintech-card {
-    @apply glass-card;
-  }
-
-  .fintech-card-elevated {
-    @apply glass-card;
-    box-shadow:
-      0 12px 40px -8px hsl(0 0% 0% / 0.15),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.15);
-  }
-
-  /* Bottom Navigation - Floating Glass */
-  .bottom-nav {
-    @apply fixed bottom-4 left-4 right-4 z-50 rounded-3xl;
-    background: hsl(var(--card) / 0.85);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid hsl(var(--border) / 0.5);
-    box-shadow:
-      0 8px 32px -4px hsl(0 0% 0% / 0.15),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.1);
-  }
-
-  .dark .bottom-nav {
-    background: hsl(220 13% 10% / 0.85);
-    box-shadow:
-      0 8px 32px -4px hsl(0 0% 0% / 0.4),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.05);
-  }
-
-  .nav-item {
-    @apply flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-2xl transition-all duration-200;
-  }
-
-  .nav-item-active {
-    @apply text-primary;
-  }
-
-  /* Action Button - Floating */
-  .action-btn {
-    @apply w-14 h-14 rounded-2xl bg-primary flex items-center justify-center;
-    box-shadow:
-      0 4px 16px hsl(var(--primary) / 0.4),
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.2);
-    transition: all 0.2s ease;
-  }
-
-  .action-btn:active {
-    transform: scale(0.95);
-  }
-
-  /* Apple Card Style (desktop) */
-  .apple-card {
-    @apply bg-card rounded-2xl border border-border/50 hover:shadow-lg transition-all duration-300;
-    box-shadow: 0 2px 8px -2px hsl(0 0% 0% / 0.05);
-  }
-
-  .apple-card:hover {
-    box-shadow: 0 8px 24px -4px hsl(0 0% 0% / 0.1);
-  }
-
-  /* Notification Badge */
-  .notification-badge {
-    @apply absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-destructive text-destructive-foreground text-xs font-bold rounded-full flex items-center justify-center;
-    box-shadow: 0 2px 8px hsl(var(--destructive) / 0.4);
-  }
-
-  /* Header Glass */
-  .header-glass {
-    background: hsl(var(--background) / 0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid hsl(var(--border) / 0.5);
-  }
-
-  /* Input Glass */
-  .input-glass {
-    @apply bg-secondary/50 border-border/30 rounded-xl;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
-  /* Icon Containers */
-  .icon-container {
-    @apply w-10 h-10 rounded-xl flex items-center justify-center;
-  }
-
-  .icon-container-sm {
-    @apply w-8 h-8 rounded-lg flex items-center justify-center;
-  }
-
-  /* Pill Badge */
-  .pill-badge {
-    @apply px-3 py-1 rounded-full text-xs font-medium;
-  }
-
-  /* List Item with Glass */
-  .list-item-glass {
-    @apply flex items-center justify-between p-4 rounded-2xl transition-all duration-200;
-    background: hsl(var(--secondary) / 0.3);
-  }
-
-  .list-item-glass:hover {
-    background: hsl(var(--secondary) / 0.5);
-  }
-
-  /* Modal/Sheet Glass */
-  .sheet-glass {
-    background: hsl(var(--card) / 0.95);
-    backdrop-filter: blur(32px);
-    -webkit-backdrop-filter: blur(32px);
-  }
-
-  /* Badges status (para empréstimos) */
-  .badge-status-ativo {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
-           bg-[hsl(var(--accent))/0.18] text-[hsl(var(--accent))];
-  }
-
-  .badge-status-vencido {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
-           bg-warning/20 text-warning;
-  }
-
-  .badge-status-pago {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
-           bg-success/20 text-success;
-  }
-
-  /* Typography */
-  .page-title {
-    @apply text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl;
-  }
-
-  .page-subtitle {
-    @apply text-sm text-muted-foreground sm:text-base md:text-lg;
+  /* Padrão de Fundo - Corrigido para não repetir e preencher */
+  .bg-login-pattern-custom {
+    background-image: url('/banner-login.svg');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.1;
+    filter: grayscale(1);
+    mix-blend-mode: plus-lighter;
+    pointer-events: none;
   }
 }
-/* ========================================
-   SISTEMA DE LOGIN - LOJINHA-BOY
-   DESIGN BY RENATO FILHO (2026)
-   ======================================== */
 
-@keyframes login-float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes login-blob {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
-}
-
-.animate-login-float {
-  animation: login-float 5s ease-in-out infinite;
-}
-
-.animate-login-blob {
-  animation: login-blob 10s infinite alternate ease-in-out;
-}
-
-/* Background com a sua imagem /banner-login.svg */
-.bg-login-pattern-custom {
-  background-image: url('/banner-login.svg');
-  background-repeat: repeat;
-  background-size: 350px;
-  /* Visibilidade ajustada: nítida mas sem brigar com o formulário */
-  opacity: 0.12; 
-  filter: grayscale(1) brightness(0.8);
-  mix-blend-mode: plus-lighter;
-  pointer-events: none;
-}
-
-/* Card Estilo Fintech Premium */
-.glass-card-login {
-  background: rgba(13, 16, 23, 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.6),
-    inset 0 1px 1px rgba(255, 255, 255, 0.05);
-}
-
-/* Footer do Desenvolvedor */
-.dev-signature-glow {
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), transparent);
-  height: 1px;
-  width: 100%;
-  margin-bottom: 1.5rem;
-}
-
-.social-button-premium {
-  @apply p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-400 transition-all duration-300 hover:text-primary hover:bg-white/10 hover:-translate-y-1 active:scale-90;
-}
-/* Animações do Login */
-@keyframes blob {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
-}
-
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
-}
-
-.animate-blob {
-  animation: blob 7s infinite alternate;
-}
-
-.animate-float {
-  animation: float 4s ease-in-out infinite;
-}
-
-.animation-delay-2000 {
-  animation-delay: 2s;
-}
-
-/* Configuração do Banner de Fundo */
-.login-banner-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: url('/banner-login.svg');
-  background-repeat: repeat;
-  /* Opacidade ajustada para ser mais visível e profissional */
-  opacity: 0.08; 
-}
+/* Scrollbar Minimalista Shark */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-primary/20 rounded-full transition-colors; }
+::-webkit-scrollbar-thumb:hover { @apply bg-primary/40; }
