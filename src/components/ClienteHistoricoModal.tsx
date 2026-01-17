@@ -88,113 +88,113 @@ const ClienteHistoricoModal = ({
     setShowForm(false);
     setValor(''); 
     setJuros('');
-    toast.success("Novo contrato aberto com sucesso!");
+    toast.success("Novo contrato Shark aberto!");
   };
 
   if (!cliente) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl max-h-[95vh] overflow-y-auto border-none bg-card/95 backdrop-blur-3xl shadow-2xl rounded-[2.5rem] p-0 outline-none">
+      <DialogContent className="max-w-[95vw] sm:max-w-xl max-h-[95vh] overflow-y-auto border-none bg-card/95 backdrop-blur-3xl shadow-2xl rounded-[2rem] md:rounded-[2.5rem] p-0 outline-none">
         
-        {/* Header Consolidado (Heurística #1 & #8) */}
-        <div className="p-8 pb-4 sticky top-0 bg-card/50 backdrop-blur-md z-20 border-b border-white/5">
+        {/* Header Consolidado - Responsivo */}
+        <div className="p-5 md:p-8 pb-4 sticky top-0 bg-card/50 backdrop-blur-md z-20 border-b border-white/5">
           <DialogHeader>
-            <div className="flex items-center gap-2 text-primary mb-1">
-              <TrendingUp size={16} />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Shark Intelligence</span>
+            <div className="flex items-center gap-2 text-primary/70 mb-1">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em]">Shark Intelligence</span>
             </div>
-            <DialogTitle className="text-3xl font-black tracking-tighter text-foreground flex items-center justify-between">
-              {cliente.nome}
-              <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-white/10 h-10 w-10">
-                <X size={20} />
+            <DialogTitle className="text-xl md:text-3xl font-black tracking-tighter text-foreground flex items-center justify-between min-w-0">
+              <span className="truncate pr-2">{cliente.nome}</span>
+              <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-white/10 h-10 w-10 shrink-0">
+                <X className="w-5 h-5" />
               </Button>
             </DialogTitle>
-            <DialogDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              Análise de Crédito e Histórico de Movimentações
+            <DialogDescription className="text-[9px] md:text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">
+              Análise de Crédito e Histórico
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="p-8 space-y-8">
-          {/* Resumo Financeiro Bento Style (Heurística #2) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-5 bg-destructive/5 rounded-[2rem] border border-destructive/10">
-              <p className="text-[10px] font-black text-destructive uppercase tracking-widest mb-1 opacity-70">Dívida Ativa</p>
-              <p className="text-2xl font-black text-foreground">{formatCurrency(totalDevendo)}</p>
+        <div className="p-5 md:p-8 space-y-6 md:space-y-8">
+          {/* Resumo Financeiro Bento Style */}
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="p-4 md:p-5 bg-destructive/5 rounded-[1.5rem] md:rounded-[2rem] border border-destructive/10">
+              <p className="text-[8px] md:text-[10px] font-black text-destructive uppercase tracking-widest mb-1 opacity-70">Dívida Ativa</p>
+              <p className="text-xl md:text-2xl font-black text-foreground truncate">{formatCurrency(totalDevendo)}</p>
             </div>
-            <div className="p-5 bg-emerald-500/5 rounded-[2rem] border border-emerald-500/10">
-              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1 opacity-70">Lucro Realizado</p>
-              <p className="text-2xl font-black text-foreground">{formatCurrency(lucroTotal)}</p>
+            <div className="p-4 md:p-5 bg-emerald-500/5 rounded-[1.5rem] md:rounded-[2rem] border border-emerald-500/10">
+              <p className="text-[8px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1 opacity-70">Lucro Total</p>
+              <p className="text-xl md:text-2xl font-black text-foreground truncate">{formatCurrency(lucroTotal)}</p>
             </div>
           </div>
 
-          {/* Ação Principal: Novo Contrato (Heurística #7) */}
+          {/* Ação Principal: Novo Contrato */}
           {!showForm ? (
             <Button 
               onClick={() => setShowForm(true)} 
-              className="w-full h-16 rounded-2xl bg-primary text-black font-black uppercase text-xs tracking-widest hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/10"
+              className="w-full h-14 md:h-16 rounded-xl md:rounded-2xl bg-primary text-black font-black uppercase text-[10px] md:text-xs tracking-widest hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/20"
             >
               <Plus className="w-5 h-5 mr-2 stroke-[3]" /> Abrir Novo Contrato
             </Button>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-5 p-6 border border-primary/20 rounded-[2.5rem] bg-primary/5 animate-in slide-in-from-top-4 duration-500">
+            <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5 p-5 md:p-6 border border-primary/20 rounded-[2rem] md:rounded-[2.5rem] bg-primary/5 animate-in slide-in-from-top-4 duration-500">
               <div className="flex justify-between items-center">
-                <h4 className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">Novo Lançamento</h4>
-                <Button variant="ghost" size="sm" onClick={() => setShowForm(false)} className="h-8 w-8 p-0 rounded-full">
-                  <X size={16} />
+                <h4 className="text-[9px] md:text-[10px] font-black uppercase text-primary tracking-[0.2em]">Novo Lançamento</h4>
+                <Button variant="ghost" size="sm" onClick={() => setShowForm(false)} className="h-8 w-8 p-0 rounded-full hover:bg-primary/10">
+                  <X className="w-4 h-4" />
                 </Button>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60 ml-2">Capital (R$)</Label>
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] md:text-[10px] font-black uppercase opacity-60 ml-2">Capital (R$)</Label>
                   <Input 
                     type="number" 
                     placeholder="0,00"
                     value={valor} 
                     onChange={(e) => setValor(e.target.value)} 
-                    className="rounded-2xl h-14 bg-background border-none font-bold text-lg focus-visible:ring-primary/30" 
+                    className="rounded-xl md:rounded-2xl h-12 md:h-14 bg-background border-none font-bold text-base md:text-lg focus-visible:ring-primary/30" 
                     autoFocus 
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60 ml-2 text-primary">Juros (R$)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] md:text-[10px] font-black uppercase opacity-60 ml-2 text-primary">Juros (R$)</Label>
                   <Input 
                     type="number" 
                     placeholder="0,00"
                     value={juros} 
                     onChange={(e) => setJuros(e.target.value)} 
-                    className="rounded-2xl h-14 bg-background border-none font-bold text-lg text-primary focus-visible:ring-primary/30" 
+                    className="rounded-xl md:rounded-2xl h-12 md:h-14 bg-background border-none font-bold text-base md:text-lg text-primary focus-visible:ring-primary/30" 
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60 ml-2">Data Inicial</Label>
-                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="rounded-xl h-12 bg-background border-none text-xs font-bold" />
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] md:text-[10px] font-black uppercase opacity-60 ml-2 text-center block md:text-left">Início</Label>
+                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="rounded-lg md:rounded-xl h-10 md:h-12 bg-background border-none text-[10px] font-bold" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60 ml-2">Vencimento</Label>
-                  <Input type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} className="rounded-xl h-12 bg-background border-none text-xs font-bold text-primary" />
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] md:text-[10px] font-black uppercase opacity-60 ml-2 text-center block md:text-left">Vencimento</Label>
+                  <Input type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} className="rounded-lg md:rounded-xl h-10 md:h-12 bg-background border-none text-[10px] font-bold text-primary" />
                 </div>
               </div>
               
-              <Button type="submit" className="w-full h-14 rounded-xl bg-primary text-black font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                Confirmar e Gerar
+              <Button type="submit" className="w-full h-12 md:h-14 rounded-lg md:rounded-xl bg-primary text-black font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all active:scale-95">
+                Confirmar Operação
               </Button>
             </form>
           )}
 
-          {/* Histórico de Transações (Heurística #1 & #6) */}
+          {/* Histórico de Transações */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 px-2 text-muted-foreground">
-              <History size={14} />
-              <h4 className="font-black text-[10px] uppercase tracking-[0.2em]">Fluxo de Contratos</h4>
+            <div className="flex items-center gap-2 px-1 text-muted-foreground">
+              <History className="w-3.5 h-3.5" />
+              <h4 className="font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em]">Fluxo de Contratos</h4>
             </div>
 
-            <div className="space-y-3 pb-8">
+            <div className="space-y-3 pb-6 md:pb-8">
               {clienteEmprestimos.map((emp) => {
                 const statusStr = String(emp.status).toLowerCase();
                 const isPago = statusStr === 'pago' || statusStr === 'quitado';
@@ -205,76 +205,76 @@ const ClienteHistoricoModal = ({
                   <div 
                     key={emp.id} 
                     className={cn(
-                      "p-5 rounded-[2.2rem] border transition-all duration-300 group",
+                      "p-4 md:p-5 rounded-[1.8rem] md:rounded-[2.2rem] border transition-all duration-300",
                       isPago ? "bg-secondary/10 border-white/5 opacity-60" : 
-                      isVencido ? "bg-destructive/5 border-destructive/20 animate-pulse-subtle" : 
+                      isVencido ? "bg-destructive/5 border-destructive/20" : 
                       "bg-secondary/20 border-white/5 hover:border-primary/20"
                     )}
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between mb-4 gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span className={cn(
-                          "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm",
+                          "px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest shadow-sm truncate",
                           isPago ? "bg-emerald-500/20 text-emerald-500" : 
-                          isVencido ? "bg-destructive text-white" : 
+                          isVencido ? "bg-destructive text-white shadow-lg shadow-destructive/20" : 
                           "bg-primary/20 text-primary"
                         )}>
                           {isPago ? 'Liquidado' : isVencido ? 'Vencido' : 'Em Aberto'}
                         </span>
-                        {isVencido && <AlertTriangle size={12} className="text-destructive animate-bounce" />}
+                        {isVencido && <AlertTriangle className="w-3 h-3 text-destructive shrink-0 animate-pulse" />}
                       </div>
 
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1 md:gap-1.5 shrink-0">
                         {!isPago && (
                           <>
                             <button 
                               onClick={() => onRenovarJuros(emp.id)} 
-                              className="h-9 w-9 flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-colors"
-                              title="Renovar Juros"
+                              className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 rounded-lg md:rounded-xl transition-colors"
+                              title="Renovar"
                             >
-                              <RefreshCw size={16} />
+                              <RefreshCw className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             </button>
                             <button 
                               onClick={() => onMarcarPago(emp)} 
-                              className="h-9 w-9 flex items-center justify-center text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-colors"
-                              title="Baixar Título"
+                              className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg md:rounded-xl transition-colors"
+                              title="Quitar"
                             >
-                              <CheckCircle size={16} />
+                              <CheckCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             </button>
                           </>
                         )}
                         <button 
                           onClick={() => onEditEmprestimo(emp)} 
-                          className="h-9 w-9 flex items-center justify-center text-muted-foreground bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
+                          className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center text-muted-foreground bg-white/5 hover:bg-white/10 rounded-lg md:rounded-xl transition-colors"
                         >
-                          <Edit2 size={14} />
+                          <Edit2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
                         </button>
                         <button 
-                          onClick={() => { if(confirm('Deseja excluir permanentemente este contrato?')) onDeleteEmprestimo(emp.id); }} 
-                          className="h-9 w-9 flex items-center justify-center text-destructive/40 hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+                          onClick={() => { if(confirm('Excluir este contrato?')) onDeleteEmprestimo(emp.id); }} 
+                          className="h-8 w-8 md:h-9 md:w-9 flex items-center justify-center text-destructive/40 hover:text-destructive hover:bg-destructive/10 rounded-lg md:rounded-xl transition-colors"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-end">
-                      <div className="space-y-0.5">
-                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Saldo a Receber</p>
+                    <div className="flex justify-between items-end gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <p className="text-[8px] md:text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60 truncate">Saldo a Receber</p>
                         <p className={cn(
-                          "text-2xl font-black tracking-tighter",
+                          "text-xl md:text-2xl font-black tracking-tighter truncate",
                           isVencido ? "text-destructive" : "text-foreground"
                         )}>
                           {formatCurrency(saldoCard)}
                         </p>
                       </div>
-                      <div className="text-right space-y-0.5">
+                      <div className="text-right space-y-0.5 shrink-0">
                         <div className="flex items-center justify-end gap-1 text-muted-foreground opacity-60">
-                          <Calendar size={10} />
-                          <p className="text-[9px] font-black uppercase tracking-widest">Vencimento</p>
+                          <Calendar className="w-2.5 h-2.5" />
+                          <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest">Vencimento</p>
                         </div>
                         <p className={cn(
-                          "text-xs font-bold",
+                          "text-[10px] md:text-xs font-bold",
                           isVencido ? "text-destructive" : "text-foreground"
                         )}>
                           {formatDate(emp.dataVencimento)}
